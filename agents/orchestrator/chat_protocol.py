@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from uagents import Context, Protocol
-from agents.models.config import ALICE_ADDRESS, SYNOPSIS_ADDRESS
+from agents.models.config import SYNOPSIS_ADDRESS
 from agents.models.models import SharedAgentState
 from agents.services.state_service import state_service
 from uagents_core.contrib.protocols.chat import (
@@ -31,26 +31,23 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     chat_session_id = str(ctx.session)
     state = state_service.get_state(chat_session_id)
 
+    now = datetime.now(tz=timezone.utc)
     if state is None:
         state = SharedAgentState(
             chat_session_id=chat_session_id,
             query=text,
             user_sender_address=sender,
+            message_timestamp=now,
         )
         state_service.set_state(chat_session_id, state)
     else:
         state.query = text
+        state.message_timestamp = now
 
     response = None
-
-    if "alice" in text.lower():
-        await ctx.send(ALICE_ADDRESS, state)
-        ctx.logger.info("Routing to Alice!")
-    elif "synopsis" in text.lower():
-        await ctx.send(SYNOPSIS_ADDRESS, state)
-        ctx.logger.info("Routing to synopsis!")
-    else:
-        response = "Mention Alice or Bob in your message and I'll route it to them."
+    
+    await ctx.send(SYNOPSIS_ADDRESS, state)
+    ctx.logger.info("Routing to synopsis!")
 
     if response:
         await ctx.send(

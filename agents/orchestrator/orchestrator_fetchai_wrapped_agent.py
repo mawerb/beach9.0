@@ -72,6 +72,7 @@ async def handle_agent_response(ctx: Context, sender: str, state: SharedAgentSta
     so once a helper agent finishes, we relay the result directly back to the original user.
     """
     ctx.logger.info(f"Received state back from agent: session={state.chat_session_id}, result={state.result!r}")
+
     response = generate_orchestrator_response_from_state(state)
     await ctx.send(
         state.user_sender_address,

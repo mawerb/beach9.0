@@ -1,6 +1,10 @@
 from agents.models.config import ALICE_SEED
 from agents.models.models import SharedAgentState
 from uagents import Agent, Context
+import asyncio
+import os
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 alice = Agent(
     name="alice",
@@ -10,6 +14,9 @@ alice = Agent(
     publish_agent_details=True,
 )
 
+MONGO_URI = os.getenv("MONGO_URI")
+
+client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
 
 def super_cool_alice_workflow(state: SharedAgentState) -> SharedAgentState:
     """
@@ -20,6 +27,12 @@ def super_cool_alice_workflow(state: SharedAgentState) -> SharedAgentState:
     state.result before returning. That mutation is how her work gets communicated
     back to the orchestrator and ultimately to the user.
     """
+    try:
+        client.admin.command('ping')
+        print("Pinged your deployment. You successfully connected to MongoDB!")
+    except Exception as e:
+        print(e)
+    
     state.result = f"Hello, this is Alice! Your message was: {state.query}"
     return state
 
