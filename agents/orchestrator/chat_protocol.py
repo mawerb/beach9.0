@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from uagents import Context, Protocol
-from agents.models.config import ALICE_ADDRESS, BOB_ADDRESS
+from agents.models.config import ALICE_ADDRESS, SYNOPSIS_ADDRESS
 from agents.models.models import SharedAgentState
 from agents.services.state_service import state_service
 from uagents_core.contrib.protocols.chat import (
@@ -46,9 +46,9 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     if "alice" in text.lower():
         await ctx.send(ALICE_ADDRESS, state)
         ctx.logger.info("Routing to Alice!")
-    elif "bob" in text.lower():
-        await ctx.send(BOB_ADDRESS, state)
-        ctx.logger.info("Routing to Bob!")
+    elif "synopsis" in text.lower():
+        await ctx.send(SYNOPSIS_ADDRESS, state)
+        ctx.logger.info("Routing to synopsis!")
     else:
         response = "Mention Alice or Bob in your message and I'll route it to them."
 
