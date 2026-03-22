@@ -30,7 +30,8 @@ export default function TranscriptBar() {
       {/* Tab handle — always visible on the right edge */}
       <button style={styles.tab} onClick={() => setOpen((o) => !o)} aria-label="Toggle transcript">
         <div style={styles.tabPill} />
-        <ChatText size={14} color="rgba(255,255,255,0.8)" />
+        <ChatText size={14} color="rgba(0,0,0,0.6)" />
+        <span style={styles.tabLabel}>Transcript</span>
         {isLive && <div style={styles.liveDot} />}
       </button>
 
@@ -38,41 +39,59 @@ export default function TranscriptBar() {
       <div style={styles.panel}>
         <div style={styles.header}>
           {isLive ? (
-            <Microphone size={13} weight="fill" color="var(--color-sage)" />
+            <>
+              <Microphone size={13} weight="fill" color="var(--color-sage)" />
+              <span style={styles.headerLabel}>Live</span>
+            </>
           ) : (
-            <MicrophoneSlash size={13} color="var(--color-amber)" />
+            <span style={styles.inactiveBubble}>
+              <MicrophoneSlash size={11} color="var(--color-amber)" />
+              <span style={styles.inactiveLabel}>Mic off</span>
+            </span>
           )}
-          <span style={styles.headerLabel}>{isLive ? 'Live' : 'Inactive'}</span>
         </div>
 
         <div style={styles.scrollArea} ref={scrollRef}>
           {lines.length === 0 ? (
             <p style={styles.empty}>No transcript yet…</p>
           ) : (
-            lines.map((line) => (
-              <div key={line.lineId} style={styles.line}>
-                <span
+            lines.map((line) => {
+              const isUser = line.speaker === 'user';
+              return (
+                <div
+                  key={line.lineId}
                   style={{
-                    ...styles.speaker,
-                    color:
-                      line.speaker === 'user'
-                        ? 'var(--color-sage)'
-                        : 'rgba(255,255,255,0.55)',
+                    ...styles.bubbleRow,
+                    justifyContent: isUser ? 'flex-end' : 'flex-start',
                   }}
                 >
-                  {line.speaker === 'user' ? 'You' : 'Them'}
-                </span>
-                <span
-                  style={{
-                    ...styles.lineText,
-                    fontStyle: line.isFinal ? 'normal' : 'italic',
-                    opacity: line.isFinal ? 1 : 0.6,
-                  }}
-                >
-                  {line.text}
-                </span>
-              </div>
-            ))
+                  <div
+                    style={{
+                      ...styles.bubble,
+                      background: isUser ? '#d1fae5' : '#dbeafe',
+                      borderRadius: isUser
+                        ? '14px 14px 2px 14px'
+                        : '14px 14px 14px 2px',
+                      opacity: line.isFinal ? 1 : 0.6,
+                    }}
+                  >
+                    <span style={{
+                      ...styles.bubbleSender,
+                      color: isUser ? '#065f46' : '#1e40af',
+                    }}>
+                      {isUser ? 'You' : 'Them'}
+                    </span>
+                    <span style={{
+                      ...styles.bubbleText,
+                      fontStyle: line.isFinal ? 'normal' : 'italic',
+                      color: isUser ? '#064e3b' : '#1e3a8a',
+                    }}>
+                      {line.text}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </div>
@@ -116,7 +135,7 @@ const styles = {
     width: 3,
     height: 24,
     borderRadius: 9999,
-    background: 'rgba(255,255,255,0.3)',
+    background: 'rgba(0,0,0,0.2)',
   },
   liveDot: {
     width: 6,
@@ -143,13 +162,13 @@ const styles = {
     alignItems: 'center',
     gap: 6,
     padding: '8px 12px 6px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
+    borderBottom: '1px solid rgba(0,0,0,0.08)',
     flexShrink: 0,
   },
   headerLabel: {
     fontFamily: 'var(--font-mono)',
     fontSize: 10,
-    color: 'var(--color-ar-muted)',
+    color: 'rgba(0,0,0,0.5)',
     textTransform: 'uppercase',
     letterSpacing: '0.1em',
   },
@@ -165,26 +184,56 @@ const styles = {
   empty: {
     fontFamily: 'var(--font-mono)',
     fontSize: 11,
-    color: 'var(--color-ar-muted)',
+    color: 'rgba(0,0,0,0.45)',
     fontStyle: 'italic',
   },
-  line: {
+  bubbleRow: {
+    display: 'flex',
+    width: '100%',
+  },
+  bubble: {
+    maxWidth: '85%',
+    padding: '6px 10px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 1,
+    gap: 2,
   },
-  speaker: {
+  bubbleSender: {
     fontFamily: 'var(--font-mono)',
-    fontSize: 10,
-    fontWeight: 500,
+    fontSize: 9,
+    fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
   },
-  lineText: {
+  bubbleText: {
     fontFamily: 'var(--font-body)',
-    fontSize: 13,
-    color: 'white',
-    mixBlendMode: 'difference',
+    fontSize: 12,
     lineHeight: 1.4,
+  },
+  tabLabel: {
+    writingMode: 'vertical-rl',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 9,
+    fontWeight: 500,
+    color: 'rgba(0,0,0,0.45)',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
+  },
+  inactiveBubble: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    background: 'var(--color-amber-light)',
+    borderRadius: 'var(--radius-full)',
+    padding: '2px 8px 2px 6px',
+  },
+  inactiveLabel: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 500,
+    color: 'var(--color-amber)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
   },
 };

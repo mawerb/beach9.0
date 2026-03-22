@@ -56,6 +56,9 @@ export default function ResponseDrawer() {
         <div style={styles.handlePill} />
       </div>
 
+      {!panelVisible && (
+        <span style={styles.sideLabel}>Responses</span>
+      )}
 
       {panelVisible && (
         <>
@@ -109,7 +112,7 @@ const styles = {
     width: 4,
     height: 32,
     borderRadius: 'var(--radius-full)',
-    background: 'rgba(255,255,255,0.2)',
+    background: 'rgba(0,0,0,0.18)',
   },
   confirmation: {
     padding: '4px 16px 8px',
@@ -119,5 +122,18 @@ const styles = {
   },
   confirmLabel: {
     fontWeight: 600,
+  },
+  sideLabel: {
+    writingMode: 'vertical-rl',
+    transform: 'rotate(180deg)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 500,
+    color: 'rgba(0,0,0,0.45)',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
+    marginTop: 12,
+    alignSelf: 'center',
   },
 };

@@ -49,7 +49,7 @@ export default function StatusPill({ onEndConversation }) {
             onClick={onEndConversation}
             aria-label="End conversation"
           >
-            <X size={14} weight="bold" color="var(--color-ar-text)" />
+            <X size={14} weight="bold" color="rgba(0,0,0,0.7)" />
           </button>
         )}
       </motion.div>
@@ -98,7 +98,7 @@ const styles = {
     width: 24,
     height: 24,
     borderRadius: '50%',
-    background: 'rgba(255,255,255,0.1)',
+    background: 'rgba(0,0,0,0.08)',
     border: 'none',
     cursor: 'pointer',
     marginLeft: 4,

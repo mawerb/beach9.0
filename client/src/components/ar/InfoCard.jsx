@@ -85,8 +85,8 @@ export default function InfoCard({ containerRef }) {
                         ...styles.dot,
                         background:
                           confidenceScore >= threshold
-                            ? 'var(--color-ar-text)'
-                            : 'rgba(255,255,255,0.2)',
+                            ? 'rgba(0,0,0,0.7)'
+                            : 'rgba(0,0,0,0.15)',
                       }}
                     />
                   ))}
@@ -148,8 +148,7 @@ const styles = {
   name: {
     fontFamily: 'var(--font-body)',
     fontWeight: 600,
-    color: 'white',
-    mixBlendMode: 'difference',
+    color: 'rgba(0,0,0,0.85)',
     lineHeight: 1.2,
   },
   confidenceDots: {
@@ -170,7 +169,7 @@ const styles = {
     fontFamily: 'var(--font-body)',
     fontSize: 13,
     fontWeight: 500,
-    color: '#fff',
+    color: 'rgba(0,0,0,0.75)',
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
   },
@@ -180,8 +179,7 @@ const styles = {
     fontSize: 12,
     fontWeight: 300,
     fontStyle: 'italic',
-    color: 'white',
-    mixBlendMode: 'difference',
+    color: 'rgba(0,0,0,0.6)',
     lineHeight: 1.3,
     overflow: 'hidden',
     whiteSpace: 'nowrap',
@@ -190,12 +188,11 @@ const styles = {
   synopsis: {
     marginTop: 5,
     paddingTop: 5,
-    borderTop: '1px solid rgba(255,255,255,0.1)',
+    borderTop: '1px solid rgba(0,0,0,0.08)',
     fontFamily: 'var(--font-body)',
     fontSize: 11,
     fontWeight: 400,
-    color: 'white',
-    mixBlendMode: 'difference',
+    color: 'rgba(0,0,0,0.55)',
     lineHeight: 1.35,
     display: '-webkit-box',
     WebkitLineClamp: 2,

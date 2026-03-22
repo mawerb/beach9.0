@@ -24,8 +24,8 @@ export default function ToneFilterRow() {
               ...styles.pill,
               background: isActive
                 ? (tone ? TONE_COLORS[tone] : 'var(--color-sage)')
-                : 'rgba(255,255,255,0.06)',
-              color: isActive ? '#fff' : 'var(--color-ar-muted)',
+                : 'rgba(0,0,0,0.07)',
+              color: isActive ? '#fff' : 'rgba(0,0,0,0.6)',
             }}
           >
             {LABELS[String(tone)]}
