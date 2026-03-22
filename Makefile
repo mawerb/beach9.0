@@ -6,3 +6,6 @@ bob:
 
 orchestrator:
 	python -m agents.orchestrator.orchestrator_fetchai_wrapped_agent
+
+api:
+	uvicorn agents.api.server:app --reload --port 8000
