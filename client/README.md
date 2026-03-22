@@ -1,4 +1,12 @@
-# React + Vite
+# InTouch — Web client (React + Vite)
+
+This folder is the **SPA** for InTouch: camera, speech, AR-style UI, and calls to the FastAPI backend via `VITE_FACE_API_URL`.
+
+From repo root, run `npm install && npm run dev` here. For full project setup see **[`../README.md`](../README.md)**.
+
+---
+
+## React + Vite (template notes)
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
