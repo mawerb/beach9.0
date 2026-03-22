@@ -1,11 +1,18 @@
+import asyncio
+import json
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from agents.models.config import ORCHESTRATOR_SEED
+from agents.models.config import ALICE_ADDRESS, ORCHESTRATOR_SEED, SYNOPSIS_ADDRESS
 from agents.models.models import SharedAgentState
-from agents.orchestrator.chat_protocol import chat_proto, generate_orchestrator_response_from_state
+from agents.orchestrator.chat_protocol import chat_proto
 from uagents import Agent, Context, Model
 from uagents_core.contrib.protocols.chat import ChatMessage, EndSessionContent, TextContent
+
+logger = logging.getLogger(__name__)
+
+AGGREGATION_TIMEOUT_S = 10
 
 orchestrator = Agent(
     name="orchestrator",
@@ -16,6 +23,53 @@ orchestrator = Agent(
 )
 
 orchestrator.include(chat_proto, publish_manifest=True)
+
+_pending: dict[str, dict] = {}
+
+
+def _build_response(synopsis_result: str | None, suggestions: str | None) -> str:
+    """Combine synopsis and reply suggestions into a single JSON response."""
+    synopsis = None
+    if synopsis_result:
+        try:
+            synopsis = json.loads(synopsis_result)
+        except json.JSONDecodeError:
+            synopsis = synopsis_result
+
+    reply_suggestions = []
+    if suggestions:
+        try:
+            reply_suggestions = json.loads(suggestions)
+        except json.JSONDecodeError:
+            pass
+
+    return json.dumps({"synopsis": synopsis, "reply_suggestions": reply_suggestions})
+
+
+async def _send_to_user(ctx: Context, session_id: str) -> None:
+    """Send the aggregated response and clean up pending state."""
+    entry = _pending.pop(session_id, None)
+    if entry is None or entry.get("sent"):
+        return
+    entry["sent"] = True
+
+    response = _build_response(entry.get("synopsis"), entry.get("suggestions"))
+    user_address = entry.get("user_address")
+    if not user_address:
+        logger.warning("No user address for session %s", session_id)
+        return
+
+    await ctx.send(
+        user_address,
+        ChatMessage(
+            timestamp=datetime.now(tz=timezone.utc),
+            msg_id=uuid4(),
+            content=[
+                TextContent(type="text", text=response),
+                EndSessionContent(type="end-session"),
+            ],
+        ),
+    )
 
 
 class HealthResponse(Model):
@@ -32,59 +86,69 @@ class HttpMessageResponse(Model):
 
 @orchestrator.on_rest_get("/health", HealthResponse)
 async def health(ctx: Context) -> HealthResponse:
-    """
-    REST health check endpoint for the orchestrator agent.
-
-    To connect your agents to a custom frontend, you can expose them through
-    REST endpoints like this one. Visit the agent's host and port to interact:
-
-        http://localhost:8003/health
-
-    You can add additional REST endpoints using @orchestrator.on_rest_get() or
-    @orchestrator.on_rest_post() to build a full API for your frontend to consume.
-    """
     return HealthResponse(status="ok healthy")
 
 
 @orchestrator.on_rest_post("/message", HttpMessagePost, HttpMessageResponse)
 async def message(ctx: Context, req: HttpMessagePost) -> HttpMessageResponse:
-    """
-    REST endpoint to send a message to the orchestrator from any HTTP client.
-
-    To post a message, cURL the agent directly:
-
-    curl -X POST http://localhost:8003/message \
-      -H "Content-Type: application/json" \
-      -d '{"content": "Hello, orchestrator!"}'
-
-    The agent will respond with the same content echoed back as confirmation.
-    You can swap the echo logic here with a call into the agent pipeline to get
-    real responses from the orchestrator back to your frontend.
-    """
     return HttpMessageResponse(echo=req.content)
 
 
 @orchestrator.on_message(SharedAgentState)
 async def handle_agent_response(ctx: Context, sender: str, state: SharedAgentState):
     """
-    Receives the completed SharedAgentState back from a helper agent (e.g. Alice, Bob).
-    The orchestrator is the sole bridge between the internal agent flow and ASI:One —
-    so once a helper agent finishes, we relay the result directly back to the original user.
-    """
-    ctx.logger.info(f"Received state back from agent: session={state.chat_session_id}, result={state.result!r}")
+    Aggregate responses from Synthesizer and Alice.
 
-    response = generate_orchestrator_response_from_state(state)
-    await ctx.send(
-        state.user_sender_address,
-        ChatMessage(
-            timestamp=datetime.now(tz=timezone.utc),
-            msg_id=uuid4(),
-            content=[
-                TextContent(type="text", text=response),
-                EndSessionContent(type="end-session"),
-            ],
-        ),
-    )
+    Whichever arrives first is stored. When both arrive, or after the timeout,
+    the combined response is sent to the user.
+    """
+    session_id = state.chat_session_id
+    ctx.logger.info(f"Received from {sender}: session={session_id}")
+
+    if session_id not in _pending:
+        _pending[session_id] = {
+            "user_address": state.user_sender_address,
+            "synopsis": None,
+            "suggestions": None,
+            "sent": False,
+        }
+
+    entry = _pending[session_id]
+    if entry.get("sent"):
+        return
+
+    is_synopsis = sender == SYNOPSIS_ADDRESS
+    is_alice = sender == ALICE_ADDRESS
+
+    if is_synopsis:
+        entry["synopsis"] = state.result
+        ctx.logger.info(f"Synopsis received for session {session_id}")
+    elif is_alice:
+        entry["suggestions"] = state.reply_suggestions
+        ctx.logger.info(f"Suggestions received for session {session_id}")
+
+    both_ready = entry["synopsis"] is not None and entry["suggestions"] is not None
+
+    if both_ready:
+        await _send_to_user(ctx, session_id)
+    elif is_synopsis and entry["suggestions"] is None:
+        # Synopsis arrived first — start timeout for Alice
+        async def _timeout():
+            await asyncio.sleep(AGGREGATION_TIMEOUT_S)
+            if session_id in _pending and not _pending[session_id].get("sent"):
+                ctx.logger.info(f"Timeout: sending synopsis without suggestions for {session_id}")
+                await _send_to_user(ctx, session_id)
+
+        asyncio.ensure_future(_timeout())
+    elif is_alice and entry["synopsis"] is None:
+        # Alice arrived first — start timeout for Synthesizer
+        async def _timeout():
+            await asyncio.sleep(AGGREGATION_TIMEOUT_S)
+            if session_id in _pending and not _pending[session_id].get("sent"):
+                ctx.logger.info(f"Timeout: sending suggestions without synopsis for {session_id}")
+                await _send_to_user(ctx, session_id)
+
+        asyncio.ensure_future(_timeout())
 
 
 if __name__ == "__main__":

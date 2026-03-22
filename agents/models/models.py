@@ -26,5 +26,6 @@ class SharedAgentState(Model):
     query: str
     user_sender_address: str
     result: str = ""
+    reply_suggestions: Optional[str] = None
     message_timestamp: Optional[datetime] = None
     audience_type: Optional[str] = None

@@ -2,8 +2,10 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from uagents import Context, Protocol
-from agents.models.config import SYNOPSIS_ADDRESS
+from agents.models.config import ALICE_ADDRESS, SYNOPSIS_ADDRESS
 from agents.models.models import SharedAgentState
+
+MIN_TRANSCRIPT_LENGTH = 20
 from agents.services.state_service import state_service
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
@@ -44,23 +46,25 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
         state.query = text
         state.message_timestamp = now
 
-    response = None
-    
-    await ctx.send(SYNOPSIS_ADDRESS, state)
-    ctx.logger.info("Routing to synopsis!")
-
-    if response:
+    if len(text.strip()) < MIN_TRANSCRIPT_LENGTH:
         await ctx.send(
             sender,
             ChatMessage(
                 timestamp=datetime.now(tz=timezone.utc),
                 msg_id=uuid4(),
                 content=[
-                    TextContent(type="text", text=response),
+                    TextContent(type="text", text="Add more detail to summarize."),
                     EndSessionContent(type="end-session"),
                 ],
             ),
         )
+        return
+
+    await ctx.send(SYNOPSIS_ADDRESS, state)
+    ctx.logger.info("Routing to Synthesizer!")
+
+    await ctx.send(ALICE_ADDRESS, state)
+    ctx.logger.info("Routing to Alice (reply suggestions)!")
 
 
 @chat_proto.on_message(ChatAcknowledgement)
