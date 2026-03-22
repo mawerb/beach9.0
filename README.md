@@ -1,8 +1,22 @@
-# fetch-help
+# fetch-help — Fetch.ai agents (ASI:ONE / Agentverse)
 
-Memory-support assistant for conversations with people you care about. It combines **face recognition** (enrollment + match), a **React (Vite) client** with camera/speech, a **FastAPI** backend, and optional **Fetch.ai uAgents** (**Reply Curator**, **Synthesizer**, and **InTouch** orchestrator) for agent-mailbox workflows.
+**This README is for the Fetch.ai uAgent stack** you run and showcase on **Agentverse** and **ASI:ONE**. It describes **InTouch** (orchestrator), **Reply Curator**, and **Synthesizer**: how they work together, how to configure them, and how to chat via Agent Inspector.
 
-Conversation **synopses** and **reply suggestions** are generated with **Google Gemini** and stored in **MongoDB** when the API path is used. The person stored in the database is always keyed by the **name from face enrollment or match**, not a name guessed from the transcript.
+The same Git repository also contains a **separate** web app (React + FastAPI) for camera, face enrollment, and REST — that path is **not** the focus here; see [**Also in this repository**](#also-in-this-repository) at the bottom.
+
+---
+
+## What the agents do
+
+| Agent | Role |
+|--------|------|
+| **InTouch** (`agents/orchestrator/`) | **Orchestrator.** Accepts chat over the Fetch.ai **Chat Protocol**, forwards each substantive message to **Reply Curator** and **Synthesizer** in parallel, then **aggregates** their outputs into one JSON reply (`synopsis` + `reply_suggestions`). |
+| **Reply Curator** (`agents/reply_curator/`) | Uses **Gemini** to suggest **short, warm replies** the user could send next (multiple moods). |
+| **Synthesizer** (`agents/synthesizer/`) | Uses **Gemini** to build a **structured memory-support synopsis** of the conversation; can **persist** to **MongoDB** when configured (same logic as the companion API in this repo). |
+
+Synopsis and suggestions are powered by **Google Gemini**. Keep your **`GEMINI_API_KEY`** set wherever you run these processes.
+
+More detail for **InTouch** on Agentverse: [`agents/orchestrator/README.md`](agents/orchestrator/README.md).
 
 ---
 
@@ -10,23 +24,17 @@ Conversation **synopses** and **reply suggestions** are generated with **Google 
 
 ![architecture](docs/architecture.png)
 
-| Piece | Role |
-|--------|------|
-| **Web client** (`client/`) | Camera, MediaPipe-style landmarks, speech-to-text, AR-style UI, calls REST API |
-| **API** (`agents/api/server.py`) | Face enroll/match, process transcript → synopsis + suggestions, list people/synopses |
-| **Reply Curator** | uAgent: reply suggestions (Gemini) |
-| **Synthesizer** | uAgent: conversation synopsis + Mongo persistence |
-| **Orchestrator (InTouch)** | uAgent: fans out chat to Reply Curator + Synthesizer, aggregates replies |
+**Mailbox flow:** User ↔ **InTouch** ↔ (**Reply Curator** + **Synthesizer**). InTouch waits for both responses (with a timeout) before replying.
 
 ---
 
 ## Prerequisites
 
 - **Python 3.12** (recommended)
-- **Node.js 18+** (for the client)
-- **MongoDB** (local or Atlas) — required for faces + conversation storage on the API path
-- **Gemini API key** — required for synopsis and suggestions
-- (Optional) **Agentverse / ASI1** accounts — for testing uAgents via Agent Inspector
+- **pip** + dependencies from `requirements.txt` (includes `uagents`, `google-genai`, etc.)
+- **`GEMINI_API_KEY`** — required for all three agents’ LLM calls
+- **MongoDB** — required if you want the **Synthesizer** to **store** synopses (same as production-style runs); optional for a quick demo if you only care about in-session JSON
+- **[Agentverse](https://agentverse.ai)** + **[ASI:ONE](https://asi1.ai/)** accounts — for Agent Inspector / published agents
 
 ---
 
@@ -38,22 +46,16 @@ cp .env.example .env
 
 | Variable | Purpose |
 |----------|---------|
-| `REPLY_CURATOR_SEED_PHRASE` | Random string, no spaces — Reply Curator agent identity |
-| `SYNTHESIZER_SEED_PHRASE` | Same — Synthesizer agent identity |
-| `ORCHESTRATOR_SEED_PHRASE` | Same — orchestrator (InTouch) identity |
-| `ALICE_SEED_PHRASE` / `BOB_SEED_PHRASE` | **Legacy** — still read if the new keys above are unset |
-| `MONGODB_URI` | e.g. `mongodb://localhost:27017` or Atlas URI |
-| `MONGODB_DB_NAME` | Database name (default in code: `fetch_help`) |
-| `GEMINI_API_KEY` | Google AI Studio / Gemini API key |
+| `ORCHESTRATOR_SEED_PHRASE` | **InTouch** agent identity (random string, no spaces) |
+| `REPLY_CURATOR_SEED_PHRASE` | **Reply Curator** identity |
+| `SYNTHESIZER_SEED_PHRASE` | **Synthesizer** identity |
+| `ALICE_SEED_PHRASE` / `BOB_SEED_PHRASE` | **Legacy** — still used if the new keys above are unset |
+| `GEMINI_API_KEY` | Gemini API access |
+| `MONGODB_URI` / `MONGODB_DB_NAME` | Optional but typical for **Synthesizer** persistence |
 
-Load these before running Python (the app uses `python-dotenv` via `agents/models/config.py`).
+Seeds must stay **stable** for the same on-chain / Agentverse addresses between deploys.
 
-**Client (optional):** point the SPA at your API (default is `http://localhost:8000`):
-
-```bash
-# client/.env.local
-VITE_FACE_API_URL=http://localhost:8000
-```
+Configuration is loaded from `.env` via `agents/models/config.py` (`python-dotenv`).
 
 ---
 
@@ -65,7 +67,7 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-If imports fail for `from google import genai`, install the Gemini SDK:
+If `from google import genai` fails:
 
 ```bash
 pip install google-genai
@@ -73,69 +75,34 @@ pip install google-genai
 
 ---
 
-## Run the web app (typical dev flow)
+## Run the agents (local / connected mailbox)
 
-**1. Start MongoDB** (if local).
-
-**2. API** (from repo root):
+Run **each agent in its own terminal** from the **repository root** (with venv activated):
 
 ```bash
-make api
-# uvicorn agents.api.server:app --reload --port 8000
+make orchestrator    # InTouch — port 8003
+make reply-curator   # Reply Curator — port 8001
+make synthesizer     # Synthesizer — port 8002
 ```
 
-**3. Client:**
+Aliases: `make alice` → reply-curator, `make bob` → synthesizer.
 
-```bash
-cd client
-npm install
-npm run dev
-```
-
-Open the URL Vite prints (e.g. `http://localhost:5173`). CORS is allowed for `localhost:5173`.
-
-**Health check:** `GET http://localhost:8000/api/health`
+Ensure all three use the **same** `.env` so orchestrator addresses match the curator and synthesizer.
 
 ---
 
-## API overview
+## Try it on Agentverse / ASI:ONE (Agent Inspector)
 
-| Method | Path | Description |
-|--------|------|----------------|
-| `POST` | `/api/faces/enroll` | Store face landmarks + `person_name`, relationship |
-| `POST` | `/api/faces/match` | Match landmarks to enrolled person |
-| `GET` | `/api/faces` | List enrolled faces (metadata) |
-| `DELETE` | `/api/faces/{face_id}` | Remove a face |
-| `POST` | `/api/conversations/process` | Body: `transcript`, **`person_name`** (required — from face match/enroll), `relationship`, optional `user_id` → synopsis (Mongo) + suggestions |
-| `GET` | `/api/people` | People + latest synopsis / conversation summaries |
-| `GET` | `/api/people/{person_name}/synopsis` | Latest synopsis for one person |
-| `GET` | `/api/health` | Liveness + Mongo ping |
+1. Sign in at [Agentverse](https://agentverse.ai) and [ASI:ONE](https://asi1.ai/).
+2. Open **all three** agent inspectors (InTouch, Reply Curator, Synthesizer) **after** sign-in.
+3. **Connect** each agent and choose **Mailbox**.
+4. On **InTouch**, open **Agent Profile** → **Chat with Agent**.
 
-Face descriptors are **128-dimensional** vectors (see `agents/services/face_matching.py`).
+**What to send:** a **conversation transcript** or snippet (**about 20+ characters** after trimming). Shorter input gets a prompt to add more detail.
 
----
+**What you get back:** one message whose text is **JSON** combining `synopsis` (from Synthesizer) and `reply_suggestions` (from Reply Curator), assembled by InTouch.
 
-## Fetch.ai uAgents (optional)
-
-Run each in its **own terminal** (after `.env` is configured):
-
-```bash
-make orchestrator
-make reply-curator
-make synthesizer
-# or: make alice / make bob (aliases)
-```
-
-### Testing via Agent Inspector
-
-1. Sign in at [Agentverse](https://agentverse.ai) and [ASI1](https://asi1.ai/).
-2. Open **all three** agent inspectors after sign-in.
-3. **Connect** each agent and select **Mailbox**.
-4. On the **Orchestrator**, go to **Agent Profile** → **Chat with Agent**.
-
-**Example:** paste a **conversation transcript** (20+ characters). InTouch forwards it to **Reply Curator** and **Synthesizer** in parallel and returns combined JSON (`synopsis` + `reply_suggestions`).
-
-Screenshots: see `docs/step_*.png`.
+**Screenshots:** `docs/step_*.png`
 
 ### Video walkthrough
 
@@ -143,22 +110,32 @@ https://youtu.be/FPsl3cSIGQw
 
 ---
 
-## Project layout
+## Project layout (agent-focused)
 
 ```
 agents/
-  reply_curator/  # Reply suggestions (Gemini + uagents)
-  synthesizer/    # Synopsis + Mongo (Gemini + uagents)
-  orchestrator/   # InTouch — aggregate routing
-  api/            # FastAPI REST server
-  services/       # face_db, conversation_db, face_matching, …
-client/           # Vite + React UI
-docs/             # Architecture diagram + setup screenshots
+  orchestrator/   # InTouch
+  reply_curator/  # Reply Curator
+  synthesizer/    # Synthesizer
+  services/       # shared: conversation_db, state, …
+  api/            # FastAPI — companion web stack only
+client/           # React — companion web stack only
+docs/             # diagrams + Agent Inspector screenshots
 ```
 
 ---
 
-## License / docs
+## Also in this repository
 
-- Frontend-specific notes may live in `client/README.md`.
-- Planning notes: `FRONTEND_PLAN.md`.
+The **web client** (`client/`) and **FastAPI** server (`agents/api/server.py`) implement a **camera + face + speech** workflow. The browser calls **REST**, not the mailbox; the API **imports the same Python functions** as Reply Curator and Synthesizer and runs them in-process. You **do not** need the three uAgents running for that UI.
+
+If you maintain a separate doc for contributors or deployment of that stack, you can expand there; this README stays oriented to **Fetch agents / ASI:ONE**.
+
+---
+
+## Other docs
+
+- **Deploy API (Render) + frontend (Vercel):** [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+- **InTouch** (orchestrator) deep dive: [`agents/orchestrator/README.md`](agents/orchestrator/README.md)
+- Frontend notes: [`client/README.md`](client/README.md) (if present)
+- Planning: [`FRONTEND_PLAN.md`](FRONTEND_PLAN.md)

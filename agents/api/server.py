@@ -7,9 +7,29 @@ Run with:  uvicorn agents.api.server:app --reload --port 8000
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
+
+
+def _cors_allow_origins() -> list[str]:
+    """
+    Origins allowed for browser requests (CORS).
+
+    Always includes local Vite dev URLs. Set ALLOWED_ORIGINS to a comma-separated
+    list of extra origins (e.g. https://your-app.vercel.app) for production.
+    """
+    defaults = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    extra = os.getenv("ALLOWED_ORIGINS", "")
+    parsed = [o.strip() for o in extra.split(",") if o.strip()]
+    seen: set[str] = set()
+    out: list[str] = []
+    for o in defaults + parsed:
+        if o not in seen:
+            seen.add(o)
+            out.append(o)
+    return out
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,7 +61,7 @@ app = FastAPI(title="Conversation Helper API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_cors_allow_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
