@@ -1,82 +1,166 @@
 # fetch-help
 
-A multi-agent system using the Fetch.ai framework with an orchestrator that routes messages to specialized agents (Alice and Bob).
+Memory-support assistant for conversations with people you care about. It combines **face recognition** (enrollment + match), a **React (Vite) client** with camera/speech, a **FastAPI** backend, and optional **Fetch.ai uAgents** (Alice / Bob / orchestrator) for agent-mailbox workflows.
 
-# Architecture 
-![architecture.png](docs/architecture.png)
+Conversation **synopses** and **reply suggestions** are generated with **Google Gemini** and stored in **MongoDB** when the API path is used. The person stored in the database is always keyed by the **name from face enrollment or match**, not a name guessed from the transcript.
 
+---
 
-## Setup - Video Walkthrough
-https://youtu.be/FPsl3cSIGQw
+## Architecture
 
+![architecture](docs/architecture.png)
 
-## Setup - Docs
+| Piece | Role |
+|--------|------|
+| **Web client** (`client/`) | Camera, MediaPipe-style landmarks, speech-to-text, AR-style UI, calls REST API |
+| **API** (`agents/api/server.py`) | Face enroll/match, process transcript → synopsis + suggestions, list people/synopses |
+| **Alice** | uAgent: reply suggestions (Gemini) |
+| **Bob (“Synthesizer”)** | uAgent: conversation synopsis + Mongo persistence |
+| **Orchestrator** | uAgent: routes chat to Alice or Bob |
 
+---
 
-### 1. Configure environment
+## Prerequisites
+
+- **Python 3.12** (recommended)
+- **Node.js 18+** (for the client)
+- **MongoDB** (local or Atlas) — required for faces + conversation storage on the API path
+- **Gemini API key** — required for synopsis and suggestions
+- (Optional) **Agentverse / ASI1** accounts — for testing uAgents via Agent Inspector
+
+---
+
+## Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set a unique seed phrase for each agent. Seed phrases should be random strings with no spaces (tip: just mash your keyboard):
+| Variable | Purpose |
+|----------|---------|
+| `ALICE_SEED_PHRASE` | Random string, no spaces — Alice agent identity |
+| `BOB_SEED_PHRASE` | Same — Bob / synthesizer identity |
+| `ORCHESTRATOR_SEED_PHRASE` | Same — orchestrator identity |
+| `MONGODB_URI` | e.g. `mongodb://localhost:27017` or Atlas URI |
+| `MONGODB_DB_NAME` | Database name (default in code: `fetch_help`) |
+| `GEMINI_API_KEY` | Google AI Studio / Gemini API key |
 
-```
-ALICE_SEED_PHRASE=your_random_seed_here
-BOB_SEED_PHRASE=your_random_seed_here
-ORCHESTRATOR_SEED_PHRASE=your_random_seed_here
+Load these before running Python (the app uses `python-dotenv` via `agents/models/config.py`).
+
+**Client (optional):** point the SPA at your API (default is `http://localhost:8000`):
+
+```bash
+# client/.env.local
+VITE_FACE_API_URL=http://localhost:8000
 ```
 
-### 2. Create virtual environment and install dependencies
+---
+
+## Python setup
 
 ```bash
 python3.12 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Start the agents
+If imports fail for `from google import genai`, install the Gemini SDK:
 
-Each agent runs in its own terminal:
+```bash
+pip install google-genai
+```
+
+---
+
+## Run the web app (typical dev flow)
+
+**1. Start MongoDB** (if local).
+
+**2. API** (from repo root):
+
+```bash
+make api
+# uvicorn agents.api.server:app --reload --port 8000
+```
+
+**3. Client:**
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Open the URL Vite prints (e.g. `http://localhost:5173`). CORS is allowed for `localhost:5173`.
+
+**Health check:** `GET http://localhost:8000/api/health`
+
+---
+
+## API overview
+
+| Method | Path | Description |
+|--------|------|----------------|
+| `POST` | `/api/faces/enroll` | Store face landmarks + `person_name`, relationship |
+| `POST` | `/api/faces/match` | Match landmarks to enrolled person |
+| `GET` | `/api/faces` | List enrolled faces (metadata) |
+| `DELETE` | `/api/faces/{face_id}` | Remove a face |
+| `POST` | `/api/conversations/process` | Body: `transcript`, **`person_name`** (required — from face match/enroll), `relationship`, optional `user_id` → synopsis (Mongo) + suggestions |
+| `GET` | `/api/people` | People + latest synopsis / conversation summaries |
+| `GET` | `/api/people/{person_name}/synopsis` | Latest synopsis for one person |
+| `GET` | `/api/health` | Liveness + Mongo ping |
+
+Face descriptors are **128-dimensional** vectors (see `agents/services/face_matching.py`).
+
+---
+
+## Fetch.ai uAgents (optional)
+
+Run each in its **own terminal** (after `.env` is configured):
 
 ```bash
 make orchestrator
-```
-
-```bash
 make alice
-```
-
-```bash
 make bob
 ```
 
-## Testing via Agent Inspector
-1. Sign up or sign in to your account on https://agentverse.ai and https://asi1.ai/
-![step_0_sign_in.png](docs/step_0_sign_in.png)
-![step_0b_sign_in_asi1.png](docs/step_0b_sign_in_asi1.png)
-1. Open **all three** agent inspectors in your browser **after** you've signed in
-![step_1_open_inspector.png](docs/step_1_open_inspector.png)
-2. Click **Connect** on each one
-![step_2_connect.png](docs/step_2_connect.png)
-3. Select **Mailbox** on each one
-![step_3_select_mailbox.png](docs/step_3_select_mailbox.png)
-4. On the **Orchestrator** inspector, click **Go to Agent Profile**
-![step_4_agent_profile.png](docs/step_4_agent_profile.png)
-5. Click **Chat with Agent**
-![step_5_chat_with_agent.png](docs/step_5_chat_with_agent.png)
+### Testing via Agent Inspector
 
-### Example messages to try
+1. Sign in at [Agentverse](https://agentverse.ai) and [ASI1](https://asi1.ai/).
+2. Open **all three** agent inspectors after sign-in.
+3. **Connect** each agent and select **Mailbox**.
+4. On the **Orchestrator**, go to **Agent Profile** → **Chat with Agent**.
 
-```
-i want to speak to alice
-```
+**Example messages:**
 
-```
-i want to speak to bob
-```
+- `i want to speak to alice`
+- `i want to speak to bob`
+- `hi`
+
+Screenshots: see `docs/step_*.png`.
+
+### Video walkthrough
+
+https://youtu.be/FPsl3cSIGQw
+
+---
+
+## Project layout
 
 ```
-hi
+agents/
+  alice/          # Suggestion agent (Gemini + uagents)
+  bob/            # Synopsis + Mongo (Gemini + uagents)
+  orchestrator/   # Routing agent
+  api/            # FastAPI REST server
+  services/       # face_db, conversation_db, face_matching, …
+client/           # Vite + React UI
+docs/             # Architecture diagram + setup screenshots
 ```
-![step_6_example_messages.png](docs/step_6_example_messages.png)
+
+---
+
+## License / docs
+
+- Frontend-specific notes may live in `client/README.md`.
+- Planning notes: `FRONTEND_PLAN.md`.

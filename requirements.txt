@@ -44,3 +44,4 @@ python-dotenv
 motor>=3.6.0
 fastapi
 numpy
+google-genai
