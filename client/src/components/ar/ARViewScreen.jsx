@@ -42,7 +42,6 @@ export default function ARViewScreen() {
   const setRecording = useTranscriptStore((s) => s.setRecording);
   const addLine = useTranscriptStore((s) => s.addLine);
   const appendToAccumulated = useTranscriptStore((s) => s.appendToAccumulated);
-  const setCurrentSpeaker = useTranscriptStore((s) => s.setCurrentSpeaker);
   const clearTranscript = useTranscriptStore((s) => s.clearTranscript);
   const clearSuggestions = useSuggestionStore((s) => s.clearSuggestions);
   const setSynopsis = useARStore((s) => s.setSynopsis);
@@ -53,19 +52,20 @@ export default function ARViewScreen() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const getCurrentSpeaker = useCallback(() => {
-    return useTranscriptStore.getState().currentSpeaker || 'user';
-  }, []);
-
   const handleSilenceGap = useCallback(async (accumulatedText) => {
     const person = personRef.current;
     if (!person || !accumulatedText.trim()) return;
+    const faceName = (person.name || '').trim();
+    if (!faceName) {
+      showToast('Add or match a face so we know who you spoke with');
+      return;
+    }
 
     setLoading(true);
 
     const result = await processTranscript({
       transcript: accumulatedText,
-      person_name: person.name,
+      person_name: faceName,
       relationship: person.relationship || '',
     });
 
@@ -94,26 +94,24 @@ export default function ARViewScreen() {
   }, []);
 
   const handleInterim = useCallback((text) => {
-    const speaker = getCurrentSpeaker();
     if (!interimLineIdRef.current) {
       interimLineIdRef.current = `line_${++lineIdCounter.current}`;
     }
     addLine({
       lineId: interimLineIdRef.current,
-      speaker,
+      speaker: 'them',
       text,
       isFinal: false,
     });
-  }, [addLine, getCurrentSpeaker]);
+  }, [addLine]);
 
   const handleFinal = useCallback((text) => {
-    const speaker = getCurrentSpeaker();
     const lineId = interimLineIdRef.current || `line_${++lineIdCounter.current}`;
     interimLineIdRef.current = null;
 
-    addLine({ lineId, speaker, text, isFinal: true });
-    appendToAccumulated(speaker, text);
-  }, [addLine, appendToAccumulated, getCurrentSpeaker]);
+    addLine({ lineId, speaker: 'them', text, isFinal: true });
+    appendToAccumulated('them', text);
+  }, [addLine, appendToAccumulated]);
 
   const { start: startListening, stop: stopListening, isListeningRef } = useSpeechRecognition({
     lang: speechLang,
@@ -167,8 +165,7 @@ export default function ARViewScreen() {
   const handleFaceUpdate = useCallback((face, landmarks, confidence, mouthOpen) => {
     currentLandmarksRef.current = landmarks;
     updateFacePosition(face, confidence);
-    setCurrentSpeaker(mouthOpen ? 'them' : 'user');
-  }, [updateFacePosition, setCurrentSpeaker]);
+  }, [updateFacePosition]);
 
   const handleFaceLost = useCallback(() => {
     setFaceLost();

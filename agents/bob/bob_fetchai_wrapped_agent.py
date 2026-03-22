@@ -84,7 +84,7 @@ def _run_synopsis(transcript: str, tier: str = "full") -> str:
     suffix = _tier_prompt_suffix(tier)
     prompt = _base_system_prompt + f"\n{suffix}\n\nTranscript:\n{transcript}"
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.1-flash-lite-preview",
         contents=[{"role": "user", "parts": [{"text": prompt}]}],
     )
     return response.text
@@ -115,13 +115,48 @@ bob = Agent(
 )
 
 
-async def chat_synopsis(state: SharedAgentState) -> SharedAgentState:
+def _apply_face_identity(
+    parsed: dict,
+    known_person_name: str | None,
+    known_relationship: str | None,
+) -> str:
+    """
+    Use face-enrollment identity for MongoDB + stored synopsis.
+
+    When known_person_name is set (web / face match), it is the canonical
+    person_name in the database — not Gemini's transcript guess.
+    When known_relationship is set, it overwrites relationship_tag in the blob.
+    """
+    known_name = (known_person_name or "").strip()
+    if known_name:
+        person_name = known_name
+        parsed["person_name"] = person_name
+    else:
+        person_name = (parsed.get("person_name") or "").strip() or "Unknown"
+        parsed["person_name"] = person_name
+
+    rel = (known_relationship or "").strip()
+    if rel:
+        parsed["relationship_tag"] = rel
+
+    return person_name
+
+
+async def chat_synopsis(
+    state: SharedAgentState,
+    known_person_name: str | None = None,
+    known_relationship: str | None = None,
+) -> SharedAgentState:
     """
     Generate a memory-support synopsis from a conversation transcript.
 
     Uses Gemini to analyze the transcript, optionally merges with existing
     conversations (10-min window), persists to MongoDB, and writes the
     result to state.result.
+
+    known_person_name / known_relationship: when provided (e.g. from face
+    recognition + enrollment), they override Gemini for DB keys and the
+    returned synopsis fields person_name / relationship_tag.
     """
     query = (state.query or "").strip()
     if len(query) < MIN_TRANSCRIPT_LENGTH:
@@ -143,7 +178,7 @@ async def chat_synopsis(state: SharedAgentState) -> SharedAgentState:
         state.result = GENERIC_ERROR_MESSAGE
         return state
 
-    person_name = parsed.get("person_name") or "Unknown"
+    person_name = _apply_face_identity(parsed, known_person_name, known_relationship)
 
     try:
         existing = await find_conversation_to_merge(
@@ -170,6 +205,7 @@ async def chat_synopsis(state: SharedAgentState) -> SharedAgentState:
             logger.warning("Failed to parse merged synopsis")
             state.result = GENERIC_ERROR_MESSAGE
             return state
+        person_name = _apply_face_identity(parsed, known_person_name, known_relationship)
         try:
             await update_conversation(
                 str(existing["_id"]),

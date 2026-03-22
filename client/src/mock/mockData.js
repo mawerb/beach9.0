@@ -59,8 +59,12 @@ export const MOCK_CONVERSATIONS = [
 ];
 
 export const TONE_COLORS = {
-  empathetic: 'var(--color-sage)',
+  warm: 'var(--color-sage)',
   casual: 'var(--color-slate)',
+  grateful: 'var(--color-rose)',
+  playful: 'var(--color-amber)',
+  brief: 'var(--color-ink)',
+  empathetic: 'var(--color-sage)',
   clever: 'var(--color-amber)',
   serious: 'var(--color-ink)',
 };

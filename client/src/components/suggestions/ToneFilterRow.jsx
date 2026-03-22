@@ -2,8 +2,8 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useSuggestionStore } from '../../stores/suggestionStore';
 import { TONE_COLORS } from '../../mock/mockData';
 
-const TONES = [null, 'empathetic', 'casual', 'clever', 'serious'];
-const LABELS = { null: 'All', empathetic: 'Empathetic', casual: 'Casual', clever: 'Clever', serious: 'Serious' };
+const TONES = [null, 'warm', 'casual', 'grateful', 'playful', 'brief'];
+const LABELS = { null: 'All', warm: 'Warm', casual: 'Casual', grateful: 'Grateful', playful: 'Playful', brief: 'Brief' };
 
 export default function ToneFilterRow() {
   const userMode = useSettingsStore((s) => s.userMode);

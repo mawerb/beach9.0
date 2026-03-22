@@ -8,8 +8,10 @@ const MODEL_CDN =
 const DETECT_INTERVAL_MS = 150;
 const FACE_LOST_TIMEOUT_MS = 1500;
 
-const MAR_CALIBRATION_FRAMES = 20;
-const MAR_OPEN_MULTIPLIER = 1.6;
+const MAR_CALIBRATION_FRAMES = 25;
+const MAR_OPEN_MULTIPLIER = 1.5;
+const MAR_MIN_THRESHOLD = 0.18;
+const MAR_MAX_RESTING_SAMPLE = 0.35;
 
 let _initPromise = null;
 
@@ -128,17 +130,27 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
 
             const mar = computeMAR(detection.landmarks);
 
+            let mouthOpen = null;
+
             if (marThreshold.current === null) {
-              marSamples.current.push(mar);
+              if (mar < MAR_MAX_RESTING_SAMPLE) {
+                marSamples.current.push(mar);
+              }
               if (marSamples.current.length >= MAR_CALIBRATION_FRAMES) {
-                const avg = marSamples.current.reduce((a, b) => a + b, 0) / marSamples.current.length;
-                marThreshold.current = avg * MAR_OPEN_MULTIPLIER;
-                console.log(`MAR calibrated: resting=${avg.toFixed(3)}, threshold=${marThreshold.current.toFixed(3)}`);
+                const sorted = [...marSamples.current].sort((a, b) => a - b);
+                const median = sorted[Math.floor(sorted.length / 2)];
+                marThreshold.current = Math.max(
+                  median * MAR_OPEN_MULTIPLIER,
+                  MAR_MIN_THRESHOLD,
+                );
+                console.log(`MAR calibrated: median=${median.toFixed(3)}, threshold=${marThreshold.current.toFixed(3)}`);
               }
             }
 
-            const mouthOpen = marThreshold.current !== null && mar > marThreshold.current;
-            mouthOpenRef.current = mouthOpen;
+            if (marThreshold.current !== null) {
+              mouthOpen = mar > marThreshold.current;
+            }
+            mouthOpenRef.current = mouthOpen ?? false;
 
             lastFaceTime.current = performance.now();
 

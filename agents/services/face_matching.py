@@ -43,7 +43,11 @@ def find_best_match(
     best_face = None
 
     for face in stored_faces:
-        dist = euclidean_distance(query_descriptor, face["landmarks"])
+        stored = face["landmarks"]
+        if len(stored) != VECTOR_DIM:
+            log.warning("  vs %-20s  SKIPPED (dim=%d, expected=%d)", face["person_name"], len(stored), VECTOR_DIM)
+            continue
+        dist = euclidean_distance(query_descriptor, stored)
         log.info("  vs %-20s  distance=%.4f", face["person_name"], dist)
         if dist < best_dist:
             best_dist = dist

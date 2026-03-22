@@ -16,13 +16,14 @@ export default function ResponseDrawer() {
   const setSelectedId = useSuggestionStore((s) => s.setSelectedId);
   const userMode      = useSettingsStore((s) => s.userMode);
   const addLine       = useTranscriptStore((s) => s.addLine);
+  const appendToAccumulated = useTranscriptStore((s) => s.appendToAccumulated);
 
   const isDementia = userMode === 'dementia';
 
   const filtered = activeToneFilter
     ? suggestions.filter((s) => s.tone === activeToneFilter)
     : isDementia
-      ? suggestions.filter((s) => s.tone === 'empathetic').slice(0, 2)
+      ? suggestions.slice(0, 2)
       : suggestions;
 
   const handleSelect = (id) => {
@@ -35,6 +36,7 @@ export default function ResponseDrawer() {
       text: selected.text,
       isFinal: true,
     });
+    appendToAccumulated('user', selected.text);
   };
 
   // Only allow toggling when a person is in frame (suggestions are available)

@@ -50,18 +50,18 @@ def _parse_suggestions(text: str) -> list | None:
         return None
 
 
-async def generate_reply_suggestions(state: SharedAgentState) -> SharedAgentState:
+async def generate_suggestions(transcript: str) -> list | None:
     """
-    Generate 3 reply suggestions from the conversation transcript.
+    Generate 3 reply suggestions from a conversation transcript.
 
-    Uses a lightweight Gemini model. Stores the result in state.reply_suggestions
-    as a JSON string. On failure, leaves reply_suggestions as None.
+    Standalone function callable without agent context.
+    Returns a list of suggestion dicts or None on failure.
     """
-    query = (state.query or "").strip()
-    if not query:
-        return state
+    transcript = (transcript or "").strip()
+    if not transcript:
+        return None
 
-    prompt = _suggestion_prompt + f"\n\nTranscript:\n{query}"
+    prompt = _suggestion_prompt + f"\n\nTranscript:\n{transcript}"
 
     try:
         response = client.models.generate_content(
@@ -69,13 +69,24 @@ async def generate_reply_suggestions(state: SharedAgentState) -> SharedAgentStat
             contents=[{"role": "user", "parts": [{"text": prompt}]}],
         )
         parsed = _parse_suggestions(response.text)
-        if parsed is not None:
-            state.reply_suggestions = json.dumps(parsed)
-        else:
+        if parsed is None:
             logger.warning("Failed to parse suggestions JSON: %s", response.text[:200])
+        return parsed
     except Exception as e:
         logger.exception("Gemini error in Alice: %s", e)
+        return None
 
+
+async def generate_reply_suggestions(state: SharedAgentState) -> SharedAgentState:
+    """
+    Generate 3 reply suggestions from the conversation transcript.
+
+    Uses a lightweight Gemini model. Stores the result in state.reply_suggestions
+    as a JSON string. On failure, leaves reply_suggestions as None.
+    """
+    result = await generate_suggestions(state.query)
+    if result is not None:
+        state.reply_suggestions = json.dumps(result)
     return state
 
 

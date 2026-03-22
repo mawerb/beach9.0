@@ -111,3 +111,57 @@ async def update_conversation(
             }
         },
     )
+
+
+async def get_latest_synopsis_for_person(person_name: str) -> dict[str, Any] | None:
+    """Return the most recent conversation synopsis for a given person."""
+    db = _get_db()
+    collection = db[COLLECTION]
+
+    doc = await collection.find_one(
+        {"person_name": person_name},
+        sort=[("last_message_at", -1)],
+        projection={"synopsis": 1, "last_message_at": 1, "started_at": 1},
+    )
+    if not doc:
+        return None
+    doc["_id"] = str(doc["_id"])
+    return doc
+
+
+async def get_all_conversations_grouped() -> list[dict[str, Any]]:
+    """
+    Return all unique people with their latest synopsis and conversation count.
+
+    Uses MongoDB aggregation to group by person_name, pick the most recent
+    conversation, and count total conversations.
+    """
+    db = _get_db()
+    collection = db[COLLECTION]
+
+    pipeline = [
+        {"$sort": {"last_message_at": -1}},
+        {
+            "$group": {
+                "_id": "$person_name",
+                "latest_synopsis": {"$first": "$synopsis"},
+                "last_message_at": {"$first": "$last_message_at"},
+                "started_at": {"$first": "$started_at"},
+                "conversation_count": {"$sum": 1},
+                "conversations": {
+                    "$push": {
+                        "id": {"$toString": "$_id"},
+                        "started_at": "$started_at",
+                        "last_message_at": "$last_message_at",
+                        "synopsis": "$synopsis",
+                    }
+                },
+            }
+        },
+        {"$sort": {"last_message_at": -1}},
+    ]
+
+    results = []
+    async for doc in collection.aggregate(pipeline):
+        results.append(doc)
+    return results
