@@ -183,7 +183,8 @@ const styles = {
   lineText: {
     fontFamily: 'var(--font-body)',
     fontSize: 13,
-    color: 'var(--color-ar-text)',
+    color: 'white',
+    mixBlendMode: 'difference',
     lineHeight: 1.4,
   },
 };

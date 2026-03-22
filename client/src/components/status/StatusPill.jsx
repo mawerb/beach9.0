@@ -88,7 +88,7 @@ const styles = {
     fontFamily: 'var(--font-mono)',
     fontSize: 13,
     fontWeight: 500,
-    color: 'var(--color-ar-text)',
+    color: 'rgba(0,0,0,0.85)',
     whiteSpace: 'nowrap',
   },
   closeBtn: {

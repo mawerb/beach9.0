@@ -78,7 +78,7 @@ const styles = {
     fontSize: 16,
     fontWeight: 400,
     lineHeight: 1.5,
-    color: 'var(--color-ar-text)',
+    color: 'rgba(0,0,0,0.85)',
     flex: 1,
     display: '-webkit-box',
     WebkitLineClamp: 2,
