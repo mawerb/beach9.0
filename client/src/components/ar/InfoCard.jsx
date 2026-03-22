@@ -21,7 +21,8 @@ export default function InfoCard({ containerRef }) {
 
   const isOccluded = detectionStatus === 'occluded';
   const isDementia = userMode === 'dementia';
-  const cardHeight = isDementia ? 80 : 100;
+  const synopsis = currentPerson.conversationHistory?.[0]?.summary;
+  const cardHeight = isDementia ? 80 : (synopsis ? 138 : 100);
   const accentColor = RELATIONSHIP_COLORS[currentPerson.relationshipType] || 'var(--color-sage)';
 
   const isLowConfidence = confidenceScore < 0.7;
@@ -104,8 +105,11 @@ export default function InfoCard({ containerRef }) {
 
             {!isDementia && currentPerson.lastConversationTopic && (
               <p style={styles.lastTopic}>
-                Last talked about: {currentPerson.lastConversationTopic}
+                Last: {currentPerson.lastConversationTopic}
               </p>
+            )}
+            {!isDementia && synopsis && (
+              <p style={styles.synopsis}>{synopsis}</p>
             )}
           </div>
         </motion.div>
@@ -119,13 +123,15 @@ const styles = {
     position: 'absolute',
     top: 0,
     left: 0,
-    background: 'var(--color-ar-bg)',
-    backdropFilter: 'blur(16px)',
-    WebkitBackdropFilter: 'blur(16px)',
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(32px) saturate(200%)',
+    WebkitBackdropFilter: 'blur(32px) saturate(200%)',
     borderWidth: 1,
-    borderRadius: 10,
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderRadius: 14,
     overflow: 'hidden',
     pointerEvents: 'none',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.22)',
   },
   accentBar: {
     height: 3,
@@ -170,7 +176,7 @@ const styles = {
   lastTopic: {
     marginTop: 4,
     fontFamily: 'var(--font-body)',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 300,
     fontStyle: 'italic',
     color: 'var(--color-ar-muted)',
@@ -178,5 +184,19 @@ const styles = {
     overflow: 'hidden',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
+  },
+  synopsis: {
+    marginTop: 5,
+    paddingTop: 5,
+    borderTop: '1px solid rgba(255,255,255,0.1)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 11,
+    fontWeight: 400,
+    color: 'var(--color-ar-muted)',
+    lineHeight: 1.35,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
   },
 };

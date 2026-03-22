@@ -21,7 +21,8 @@ export default function SuggestionCard({ suggestion, onSelect, isLoading }) {
     <motion.div
       style={{
         ...styles.card,
-        borderColor: pressed ? 'var(--color-sage)' : 'var(--color-ar-border)',
+        borderColor: pressed ? 'var(--color-sage)' : 'rgba(255,255,255,0.22)',
+        background: pressed ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.1)',
       }}
       whileTap={{ scale: 0.97 }}
       onTapStart={() => setPressed(true)}
@@ -47,12 +48,14 @@ export default function SuggestionCard({ suggestion, onSelect, isLoading }) {
 
 const styles = {
   card: {
-    flex: '0 0 240px',
-    height: 140,
-    background: 'var(--color-ar-bg)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid var(--color-ar-border)',
+    flex: '0 0 auto',
+    width: '100%',
+    minHeight: 120,
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(24px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+    border: '1px solid rgba(255,255,255,0.22)',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.18)',
     borderRadius: 'var(--radius-lg)',
     padding: '10px 14px',
     display: 'flex',

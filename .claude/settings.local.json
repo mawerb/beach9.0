@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/legas/Documents/GitHub/beach9.0/client/src -type f \\\\\\(-name *.jsx -o -name *.tsx -o -name *.js -o -name *.ts \\\\\\))"
+    ]
+  }
+}

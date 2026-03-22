@@ -44,11 +44,11 @@ export default function ResponseDrawer() {
     setTimeout(() => setConfirmation(null), timeout);
   };
 
-  const drawerHeight = panelVisible ? 220 : 44;
+  const drawerWidth = panelVisible ? 260 : 44;
 
   return (
     <motion.div
-      animate={{ height: drawerHeight }}
+      animate={{ width: drawerWidth }}
       transition={{ type: 'spring', stiffness: 200, damping: 28 }}
       style={styles.drawer}
     >
@@ -56,9 +56,6 @@ export default function ResponseDrawer() {
         <div style={styles.handlePill} />
       </div>
 
-      {!panelVisible && (
-        <p style={styles.waitingText}>Waiting for someone to talk to…</p>
-      )}
 
       {panelVisible && (
         <>
@@ -88,36 +85,31 @@ export default function ResponseDrawer() {
 const styles = {
   drawer: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
-    right: 0,
+    bottom: 0,
     zIndex: 10,
-    background: 'rgba(10, 14, 20, 0.92)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    borderTop: '1px solid var(--color-ar-border)',
-    borderRadius: '16px 16px 0 0',
+    background: 'rgba(255, 255, 255, 0.08)',
+    backdropFilter: 'blur(32px) saturate(200%)',
+    WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+    borderRight: '1px solid rgba(255,255,255,0.22)',
+    borderRadius: '0 20px 20px 0',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
+    boxShadow: '4px 0 32px rgba(0,0,0,0.18), inset -1px 0 0 rgba(255,255,255,0.1)',
   },
   handle: {
     display: 'flex',
     justifyContent: 'center',
-    padding: '8px 0 4px',
+    padding: '16px 0 8px',
+    flexShrink: 0,
   },
   handlePill: {
-    width: 32,
-    height: 4,
+    width: 4,
+    height: 32,
     borderRadius: 'var(--radius-full)',
     background: 'rgba(255,255,255,0.2)',
-  },
-  waitingText: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: 13,
-    color: 'var(--color-ar-muted)',
-    textAlign: 'center',
-    padding: '4px 0',
   },
   confirmation: {
     padding: '4px 16px 8px',

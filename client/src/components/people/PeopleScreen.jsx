@@ -55,7 +55,7 @@ export default function PeopleScreen() {
 const styles = {
   screen: {
     minHeight: '100dvh',
-    background: 'var(--color-paper)',
+    background: 'linear-gradient(160deg, var(--color-paper) 0%, var(--color-paper2) 100%)',
     padding: '24px 16px 100px',
     maxWidth: 480,
     margin: '0 auto',
@@ -92,12 +92,15 @@ const styles = {
     alignItems: 'center',
     gap: 12,
     padding: '12px 16px',
-    background: '#fff',
-    border: '1px solid var(--rule2)',
+    background: 'rgba(255, 255, 255, 0.55)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid rgba(255, 255, 255, 0.75)',
     borderRadius: 'var(--radius-md)',
     cursor: 'pointer',
     width: '100%',
     textAlign: 'left',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
   },
   avatar: {
     width: 44,

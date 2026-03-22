@@ -66,7 +66,7 @@ export default function ARViewScreen() {
       setFaceLost();
       clearTranscript();
       clearSuggestions();
-      navigate('/');
+      navigate('/people');
     }
   };
 

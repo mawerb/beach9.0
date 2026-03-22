@@ -10,7 +10,7 @@ export default function SuggestionCarousel({ suggestions, onSelect }) {
     const el = scrollRef.current;
     if (!el) return;
     const handleScroll = () => {
-      const idx = Math.round(el.scrollLeft / 248);
+      const idx = Math.round(el.scrollTop / 148);
       setActiveIndex(idx);
     };
     el.addEventListener('scroll', handleScroll, { passive: true });
@@ -56,17 +56,19 @@ export default function SuggestionCarousel({ suggestions, onSelect }) {
 const styles = {
   container: {
     display: 'flex',
+    flexDirection: 'column',
     gap: 8,
-    overflowX: 'auto',
-    scrollSnapType: 'x mandatory',
-    padding: '0 16px',
+    overflowY: 'auto',
+    scrollSnapType: 'y mandatory',
+    padding: '0 8px',
     scrollbarWidth: 'none',
+    flex: 1,
   },
   dots: {
     display: 'flex',
     justifyContent: 'center',
     gap: 6,
-    padding: '8px 0 4px',
+    padding: '4px 0 8px',
   },
   dot: {
     width: 6,

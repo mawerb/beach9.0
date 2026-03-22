@@ -12,19 +12,30 @@ export default function BottomTabBar() {
   const navigate = useNavigate();
 
   const isARView = location.pathname === '/camera';
-  if (isARView) return null;
+
+  const barStyle = isARView
+    ? {
+        ...styles.bar,
+        background: 'rgba(10, 14, 20, 0.85)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop: '1px solid rgba(255,255,255,0.12)',
+      }
+    : styles.bar;
 
   return (
-    <nav style={styles.bar}>
+    <nav style={barStyle}>
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const isActive = location.pathname.startsWith(tab.path);
+        const activeColor = isARView ? 'var(--color-sage)' : 'var(--color-sage)';
+        const inactiveColor = isARView ? 'rgba(255,255,255,0.45)' : 'var(--color-ink3)';
         return (
           <button
             key={tab.path}
             style={{
               ...styles.tab,
-              color: isActive ? 'var(--color-sage)' : 'var(--color-ink3)',
+              color: isActive ? activeColor : inactiveColor,
             }}
             onClick={() => navigate(tab.path)}
           >
