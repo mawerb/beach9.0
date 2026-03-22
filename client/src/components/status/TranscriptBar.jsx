@@ -84,7 +84,7 @@ export default function TranscriptBar() {
                     <span style={{
                       ...styles.bubbleText,
                       fontStyle: line.isFinal ? 'normal' : 'italic',
-                      color: isUser ? '#064e3b' : '#1e3a8a',
+                      color: '#000',
                     }}>
                       {line.text}
                     </span>
@@ -102,11 +102,10 @@ export default function TranscriptBar() {
 const styles = {
   container: {
     position: 'absolute',
-    top: '50%',
+    top: 72,
     right: 0,
-    transform: 'translateY(-50%)',
     width: PANEL_WIDTH,
-    maxHeight: '60vh',
+    height: 'calc(100dvh - 72px - 80px)',
     zIndex: 9,
     display: 'flex',
     flexDirection: 'row',
@@ -119,7 +118,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 16,
     gap: 6,
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(32px) saturate(200%)',
@@ -128,7 +128,6 @@ const styles = {
     border: '1px solid rgba(255,255,255,0.25)',
     borderRight: 'none',
     cursor: 'pointer',
-    padding: '12px 0',
     boxShadow: '-4px 0 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2)',
   },
   tabPill: {
@@ -200,23 +199,25 @@ const styles = {
   },
   bubbleSender: {
     fontFamily: 'var(--font-mono)',
-    fontSize: 9,
-    fontWeight: 600,
+    fontSize: 11,
+    fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
   },
   bubbleText: {
     fontFamily: 'var(--font-body)',
-    fontSize: 12,
-    lineHeight: 1.4,
+    fontSize: 15,
+    fontWeight: 500,
+    lineHeight: 1.45,
+    color: '#000',
   },
   tabLabel: {
     writingMode: 'vertical-rl',
     fontFamily: 'var(--font-mono)',
-    fontSize: 9,
-    fontWeight: 500,
-    color: 'rgba(0,0,0,0.45)',
-    letterSpacing: '0.1em',
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#ca8a04',
+    letterSpacing: '0.12em',
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
   },

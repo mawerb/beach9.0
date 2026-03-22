@@ -75,10 +75,10 @@ const styles = {
   },
   text: {
     fontFamily: 'var(--font-body)',
-    fontSize: 16,
-    fontWeight: 400,
+    fontSize: 18,
+    fontWeight: 600,
     lineHeight: 1.5,
-    color: 'rgba(0,0,0,0.85)',
+    color: '#000',
     flex: 1,
     display: '-webkit-box',
     WebkitLineClamp: 2,
