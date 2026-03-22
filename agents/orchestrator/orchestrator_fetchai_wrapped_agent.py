@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from agents.models.config import ALICE_ADDRESS, ORCHESTRATOR_SEED, SYNOPSIS_ADDRESS
+from agents.models.config import ORCHESTRATOR_SEED, REPLY_CURATOR_ADDRESS, SYNTHESIZER_ADDRESS
 from agents.models.models import SharedAgentState
 from agents.orchestrator.chat_protocol import chat_proto
 from uagents import Agent, Context, Model
@@ -97,7 +97,7 @@ async def message(ctx: Context, req: HttpMessagePost) -> HttpMessageResponse:
 @orchestrator.on_message(SharedAgentState)
 async def handle_agent_response(ctx: Context, sender: str, state: SharedAgentState):
     """
-    Aggregate responses from Synthesizer and Alice.
+    Aggregate responses from Synthesizer and Reply Curator.
 
     Whichever arrives first is stored. When both arrive, or after the timeout,
     the combined response is sent to the user.
@@ -117,13 +117,13 @@ async def handle_agent_response(ctx: Context, sender: str, state: SharedAgentSta
     if entry.get("sent"):
         return
 
-    is_synopsis = sender == SYNOPSIS_ADDRESS
-    is_alice = sender == ALICE_ADDRESS
+    is_synthesizer = sender == SYNTHESIZER_ADDRESS
+    is_reply_curator = sender == REPLY_CURATOR_ADDRESS
 
-    if is_synopsis:
+    if is_synthesizer:
         entry["synopsis"] = state.result
         ctx.logger.info(f"Synopsis received for session {session_id}")
-    elif is_alice:
+    elif is_reply_curator:
         entry["suggestions"] = state.reply_suggestions
         ctx.logger.info(f"Suggestions received for session {session_id}")
 
@@ -131,8 +131,8 @@ async def handle_agent_response(ctx: Context, sender: str, state: SharedAgentSta
 
     if both_ready:
         await _send_to_user(ctx, session_id)
-    elif is_synopsis and entry["suggestions"] is None:
-        # Synopsis arrived first — start timeout for Alice
+    elif is_synthesizer and entry["suggestions"] is None:
+        # Synopsis arrived first — start timeout for Reply Curator
         async def _timeout():
             await asyncio.sleep(AGGREGATION_TIMEOUT_S)
             if session_id in _pending and not _pending[session_id].get("sent"):
@@ -140,8 +140,8 @@ async def handle_agent_response(ctx: Context, sender: str, state: SharedAgentSta
                 await _send_to_user(ctx, session_id)
 
         asyncio.ensure_future(_timeout())
-    elif is_alice and entry["synopsis"] is None:
-        # Alice arrived first — start timeout for Synthesizer
+    elif is_reply_curator and entry["synopsis"] is None:
+        # Reply Curator arrived first — start timeout for Synthesizer
         async def _timeout():
             await asyncio.sleep(AGGREGATION_TIMEOUT_S)
             if session_id in _pending and not _pending[session_id].get("sent"):

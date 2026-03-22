@@ -27,8 +27,8 @@ from agents.services.face_matching import (
     VECTOR_DIM,
     find_best_match,
 )
-from agents.alice.alice_fetchai_wrapped_agent import generate_suggestions
-from agents.bob.bob_fetchai_wrapped_agent import chat_synopsis
+from agents.reply_curator.reply_curator_fetchai_wrapped_agent import generate_suggestions
+from agents.synthesizer.synthesizer_fetchai_wrapped_agent import chat_synopsis
 from agents.models.models import SharedAgentState
 from agents.services.conversation_db import (
     get_all_conversations_grouped,

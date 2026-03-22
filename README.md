@@ -1,6 +1,6 @@
 # fetch-help
 
-Memory-support assistant for conversations with people you care about. It combines **face recognition** (enrollment + match), a **React (Vite) client** with camera/speech, a **FastAPI** backend, and optional **Fetch.ai uAgents** (Alice / Bob / orchestrator) for agent-mailbox workflows.
+Memory-support assistant for conversations with people you care about. It combines **face recognition** (enrollment + match), a **React (Vite) client** with camera/speech, a **FastAPI** backend, and optional **Fetch.ai uAgents** (**Reply Curator**, **Synthesizer**, and **InTouch** orchestrator) for agent-mailbox workflows.
 
 Conversation **synopses** and **reply suggestions** are generated with **Google Gemini** and stored in **MongoDB** when the API path is used. The person stored in the database is always keyed by the **name from face enrollment or match**, not a name guessed from the transcript.
 
@@ -14,9 +14,9 @@ Conversation **synopses** and **reply suggestions** are generated with **Google 
 |--------|------|
 | **Web client** (`client/`) | Camera, MediaPipe-style landmarks, speech-to-text, AR-style UI, calls REST API |
 | **API** (`agents/api/server.py`) | Face enroll/match, process transcript → synopsis + suggestions, list people/synopses |
-| **Alice** | uAgent: reply suggestions (Gemini) |
-| **Bob (“Synthesizer”)** | uAgent: conversation synopsis + Mongo persistence |
-| **Orchestrator** | uAgent: routes chat to Alice or Bob |
+| **Reply Curator** | uAgent: reply suggestions (Gemini) |
+| **Synthesizer** | uAgent: conversation synopsis + Mongo persistence |
+| **Orchestrator (InTouch)** | uAgent: fans out chat to Reply Curator + Synthesizer, aggregates replies |
 
 ---
 
@@ -38,9 +38,10 @@ cp .env.example .env
 
 | Variable | Purpose |
 |----------|---------|
-| `ALICE_SEED_PHRASE` | Random string, no spaces — Alice agent identity |
-| `BOB_SEED_PHRASE` | Same — Bob / synthesizer identity |
-| `ORCHESTRATOR_SEED_PHRASE` | Same — orchestrator identity |
+| `REPLY_CURATOR_SEED_PHRASE` | Random string, no spaces — Reply Curator agent identity |
+| `SYNTHESIZER_SEED_PHRASE` | Same — Synthesizer agent identity |
+| `ORCHESTRATOR_SEED_PHRASE` | Same — orchestrator (InTouch) identity |
+| `ALICE_SEED_PHRASE` / `BOB_SEED_PHRASE` | **Legacy** — still read if the new keys above are unset |
 | `MONGODB_URI` | e.g. `mongodb://localhost:27017` or Atlas URI |
 | `MONGODB_DB_NAME` | Database name (default in code: `fetch_help`) |
 | `GEMINI_API_KEY` | Google AI Studio / Gemini API key |
@@ -120,8 +121,9 @@ Run each in its **own terminal** (after `.env` is configured):
 
 ```bash
 make orchestrator
-make alice
-make bob
+make reply-curator
+make synthesizer
+# or: make alice / make bob (aliases)
 ```
 
 ### Testing via Agent Inspector
@@ -131,11 +133,7 @@ make bob
 3. **Connect** each agent and select **Mailbox**.
 4. On the **Orchestrator**, go to **Agent Profile** → **Chat with Agent**.
 
-**Example messages:**
-
-- `i want to speak to alice`
-- `i want to speak to bob`
-- `hi`
+**Example:** paste a **conversation transcript** (20+ characters). InTouch forwards it to **Reply Curator** and **Synthesizer** in parallel and returns combined JSON (`synopsis` + `reply_suggestions`).
 
 Screenshots: see `docs/step_*.png`.
 
@@ -149,9 +147,9 @@ https://youtu.be/FPsl3cSIGQw
 
 ```
 agents/
-  alice/          # Suggestion agent (Gemini + uagents)
-  bob/            # Synopsis + Mongo (Gemini + uagents)
-  orchestrator/   # Routing agent
+  reply_curator/  # Reply suggestions (Gemini + uagents)
+  synthesizer/    # Synopsis + Mongo (Gemini + uagents)
+  orchestrator/   # InTouch — aggregate routing
   api/            # FastAPI REST server
   services/       # face_db, conversation_db, face_matching, …
 client/           # Vite + React UI

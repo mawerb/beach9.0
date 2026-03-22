@@ -1,7 +1,7 @@
 import json
 import logging
 
-from agents.models.config import ALICE_SEED, GEMINI_API_KEY
+from agents.models.config import REPLY_CURATOR_SEED, GEMINI_API_KEY
 from agents.models.models import SharedAgentState
 from google import genai
 from uagents import Agent, Context
@@ -9,7 +9,7 @@ from uagents import Agent, Context
 client = genai.Client(api_key=GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 
-ALICE_MODEL = "gemini-2.5-flash-lite"
+REPLY_CURATOR_MODEL = "gemini-2.5-flash-lite"
 
 _suggestion_prompt = '''
 You are a reply assistant for a person with dementia.
@@ -22,9 +22,9 @@ Return valid JSON only — an array of 3 objects:
 [{"mood": "string", "text": "string"}, {"mood": "string", "text": "string"}, {"mood": "string", "text": "string"}]
 '''
 
-alice = Agent(
-    name="alice",
-    seed=ALICE_SEED,
+reply_curator = Agent(
+    name="Reply Curator",
+    seed=REPLY_CURATOR_SEED,
     port=8001,
     mailbox=True,
     publish_agent_details=True,
@@ -65,7 +65,7 @@ async def generate_suggestions(transcript: str) -> list | None:
 
     try:
         response = client.models.generate_content(
-            model=ALICE_MODEL,
+            model=REPLY_CURATOR_MODEL,
             contents=[{"role": "user", "parts": [{"text": prompt}]}],
         )
         parsed = _parse_suggestions(response.text)
@@ -73,7 +73,7 @@ async def generate_suggestions(transcript: str) -> list | None:
             logger.warning("Failed to parse suggestions JSON: %s", response.text[:200])
         return parsed
     except Exception as e:
-        logger.exception("Gemini error in Alice: %s", e)
+        logger.exception("Gemini error in Reply Curator: %s", e)
         return None
 
 
@@ -90,7 +90,7 @@ async def generate_reply_suggestions(state: SharedAgentState) -> SharedAgentStat
     return state
 
 
-@alice.on_message(SharedAgentState)
+@reply_curator.on_message(SharedAgentState)
 async def handle_message(ctx: Context, sender: str, state: SharedAgentState):
     ctx.logger.info(
         f"Received state from orchestrator: session={state.chat_session_id}, query={state.query!r}"
@@ -100,4 +100,4 @@ async def handle_message(ctx: Context, sender: str, state: SharedAgentState):
 
 
 if __name__ == "__main__":
-    alice.run()
+    reply_curator.run()

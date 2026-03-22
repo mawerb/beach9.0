@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from agents.models.config import SYNOPSIS_SEED, GEMINI_API_KEY
+from agents.models.config import SYNTHESIZER_SEED, GEMINI_API_KEY
 from agents.models.models import SharedAgentState
 from agents.services.conversation_db import (
     create_conversation,
@@ -106,9 +106,9 @@ def _parse_synopsis(text: str) -> dict | None:
         return None
 
 
-bob = Agent(
+synthesizer = Agent(
     name="Synthesizer",
-    seed=SYNOPSIS_SEED,
+    seed=SYNTHESIZER_SEED,
     port=8002,
     mailbox=True,
     publish_agent_details=True,
@@ -232,7 +232,7 @@ async def chat_synopsis(
     return state
 
 
-@bob.on_message(SharedAgentState)
+@synthesizer.on_message(SharedAgentState)
 async def handle_message(ctx: Context, sender: str, state: SharedAgentState):
     ctx.logger.info(
         f"Received state from orchestrator: session={state.chat_session_id}, query={state.query!r}"
@@ -242,4 +242,4 @@ async def handle_message(ctx: Context, sender: str, state: SharedAgentState):
 
 
 if __name__ == "__main__":
-    bob.run()
+    synthesizer.run()

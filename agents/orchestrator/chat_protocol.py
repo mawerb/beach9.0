@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from uagents import Context, Protocol
-from agents.models.config import ALICE_ADDRESS, SYNOPSIS_ADDRESS
+from agents.models.config import REPLY_CURATOR_ADDRESS, SYNTHESIZER_ADDRESS
 from agents.models.models import SharedAgentState
 
 MIN_TRANSCRIPT_LENGTH = 20
@@ -60,11 +60,11 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
         )
         return
 
-    await ctx.send(SYNOPSIS_ADDRESS, state)
+    await ctx.send(SYNTHESIZER_ADDRESS, state)
     ctx.logger.info("Routing to Synthesizer!")
 
-    await ctx.send(ALICE_ADDRESS, state)
-    ctx.logger.info("Routing to Alice (reply suggestions)!")
+    await ctx.send(REPLY_CURATOR_ADDRESS, state)
+    ctx.logger.info("Routing to Reply Curator!")
 
 
 @chat_proto.on_message(ChatAcknowledgement)

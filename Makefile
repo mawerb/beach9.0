@@ -1,8 +1,13 @@
-alice:
-	python -m agents.alice.alice_fetchai_wrapped_agent
+reply-curator:
+	python -m agents.reply_curator.reply_curator_fetchai_wrapped_agent
 
-bob:
-	python -m agents.bob.bob_fetchai_wrapped_agent
+synthesizer:
+	python -m agents.synthesizer.synthesizer_fetchai_wrapped_agent
+
+# Backward-compatible aliases
+alice: reply-curator
+
+bob: synthesizer
 
 orchestrator:
 	python -m agents.orchestrator.orchestrator_fetchai_wrapped_agent
