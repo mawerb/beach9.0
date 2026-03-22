@@ -40,7 +40,7 @@ export default function SuggestionCard({ suggestion, onSelect, isLoading }) {
       <p style={styles.text}>{suggestion.text}</p>
 
       <div style={styles.arrow}>
-        <ArrowRight size={14} color="var(--color-ar-muted)" />
+        <ArrowRight size={14} color="rgba(0,0,0,0.4)" />
       </div>
     </motion.div>
   );
@@ -50,7 +50,6 @@ const styles = {
   card: {
     flex: '0 0 auto',
     width: '100%',
-    minHeight: 120,
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(24px) saturate(180%)',
     WebkitBackdropFilter: 'blur(24px) saturate(180%)',
@@ -80,10 +79,6 @@ const styles = {
     lineHeight: 1.5,
     color: '#000',
     flex: 1,
-    display: '-webkit-box',
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden',
   },
   arrow: {
     position: 'absolute',

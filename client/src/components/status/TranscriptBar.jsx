@@ -216,7 +216,7 @@ const styles = {
     fontFamily: 'var(--font-mono)',
     fontSize: 11,
     fontWeight: 700,
-    color: '#ca8a04',
+    color: 'rgba(0,0,0,0.7)',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',

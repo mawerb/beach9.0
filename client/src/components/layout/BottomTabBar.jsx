@@ -80,8 +80,9 @@ const styles = {
   indicator: {
     position: 'absolute',
     top: 0,
-    left: '50%',
-    transform: 'translateX(-50%)',
+    left: 0,
+    right: 0,
+    margin: '0 auto',
     width: 24,
     height: 2,
     borderRadius: 2,

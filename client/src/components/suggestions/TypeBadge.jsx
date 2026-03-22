@@ -8,8 +8,8 @@ export default function TypeBadge({ type }) {
         fontSize: 11,
         fontFamily: 'var(--font-mono)',
         fontWeight: 500,
-        color: 'var(--color-ink3)',
-        background: 'rgba(255,255,255,0.08)',
+        color: 'rgba(0,0,0,0.75)',
+        background: 'rgba(0,0,0,0.08)',
       }}
       role="text"
     >
