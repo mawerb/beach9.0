@@ -1,94 +1,68 @@
 import { useEffect, useRef } from 'react';
 
-const VISION_BUNDLE =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.33/vision_bundle.mjs';
-const WASM_CDN =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.33/wasm';
-const LANDMARKER_MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const FACE_API_CDN =
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
+const MODEL_CDN =
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
 
-const DETECT_INTERVAL_MS = 80;
+const DETECT_INTERVAL_MS = 150;
 const FACE_LOST_TIMEOUT_MS = 1500;
 
-let _landmarkerPromise = null;
+let _initPromise = null;
 
-async function getLandmarker() {
-  if (_landmarkerPromise) return _landmarkerPromise;
+async function initFaceApi() {
+  if (_initPromise) return _initPromise;
 
-  _landmarkerPromise = (async () => {
-    const loadModule = new Function('url', 'return import(url)');
-    const vision = await loadModule(VISION_BUNDLE);
-    const { FaceLandmarker, FilesetResolver } = vision;
+  _initPromise = (async () => {
+    if (!window.faceapi) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = FACE_API_CDN;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
 
-    const fileset = await FilesetResolver.forVisionTasks(WASM_CDN);
-    return FaceLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: LANDMARKER_MODEL_URL, delegate: 'GPU' },
-      runningMode: 'VIDEO',
-      numFaces: 1,
-      outputFaceBlendshapes: false,
-      outputFacialTransformationMatrixes: false,
-    });
+    const faceapi = window.faceapi;
+
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_CDN),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_CDN),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_CDN),
+    ]);
+
+    return faceapi;
   })();
 
-  return _landmarkerPromise;
-}
-
-function landmarksToBBox(landmarks, vw, vh) {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const pt of landmarks) {
-    if (pt.x < minX) minX = pt.x;
-    if (pt.y < minY) minY = pt.y;
-    if (pt.x > maxX) maxX = pt.x;
-    if (pt.y > maxY) maxY = pt.y;
-  }
-  const pad = 0.04;
-  minX = Math.max(0, minX - pad);
-  minY = Math.max(0, minY - pad);
-  maxX = Math.min(1, maxX + pad);
-  maxY = Math.min(1, maxY + pad);
-
-  return {
-    x: 1 - maxX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  };
-}
-
-function flattenLandmarks(landmarks) {
-  const flat = new Array(landmarks.length * 3);
-  for (let i = 0; i < landmarks.length; i++) {
-    flat[i * 3] = landmarks[i].x;
-    flat[i * 3 + 1] = landmarks[i].y;
-    flat[i * 3 + 2] = landmarks[i].z;
-  }
-  return flat;
+  return _initPromise;
 }
 
 /**
- * Callbacks receive (face, landmarks, confidence):
- *   face      – normalised bounding box {x, y, width, height} (mirrored)
- *   landmarks – flat Float64 array of 1434 values (478 x 3)
- *   confidence – 0-1
+ * Callbacks receive (face, descriptor, confidence):
+ *   face       – normalised bounding box {x, y, width, height} (mirrored)
+ *   descriptor – 128-element Float32 array (face-api.js face descriptor)
+ *   confidence – 0-1 detection score
  */
 export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetected, onFaceLost }) {
   const rafRef = useRef(null);
   const lastDetectTime = useRef(0);
   const lastFaceTime = useRef(0);
   const wasTracking = useRef(false);
-  const landmarkerRef = useRef(null);
+  const faceapiRef = useRef(null);
+  const detectingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    getLandmarker()
-      .then((lm) => {
+    initFaceApi()
+      .then((faceapi) => {
         if (!cancelled) {
-          landmarkerRef.current = lm;
-          console.log('FaceLandmarker ready (478 landmarks)');
+          faceapiRef.current = faceapi;
+          console.log('face-api.js ready (128-dim descriptors)');
         }
       })
-      .catch((err) => console.warn('FaceLandmarker init failed:', err));
+      .catch((err) => console.warn('face-api.js init failed:', err));
 
     return () => { cancelled = true; };
   }, []);
@@ -98,44 +72,57 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
       rafRef.current = requestAnimationFrame(loop);
 
       const video = videoRef.current;
-      const landmarker = landmarkerRef.current;
-      if (!video || !landmarker || video.readyState < 2) return;
+      const faceapi = faceapiRef.current;
+      if (!video || !faceapi || video.readyState < 2) return;
+      if (detectingRef.current) return;
 
       const now = performance.now();
       if (now - lastDetectTime.current < DETECT_INTERVAL_MS) return;
       lastDetectTime.current = now;
+      detectingRef.current = true;
 
-      let result;
-      try {
-        result = landmarker.detectForVideo(video, now);
-      } catch {
-        return;
-      }
+      faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor()
+        .then((detection) => {
+          detectingRef.current = false;
 
-      if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-        const rawLandmarks = result.faceLandmarks[0];
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-        if (!vw || !vh) return;
+          if (detection) {
+            const box = detection.detection.box;
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+            if (!vw || !vh) return;
 
-        const face = landmarksToBBox(rawLandmarks, vw, vh);
-        const flat = flattenLandmarks(rawLandmarks);
-        const confidence = 0.92;
+            const face = {
+              x: 1 - (box.x + box.width) / vw,
+              y: box.y / vh,
+              width: box.width / vw,
+              height: box.height / vh,
+            };
 
-        lastFaceTime.current = now;
+            const descriptor = Array.from(detection.descriptor);
+            const confidence = detection.detection.score;
 
-        if (!wasTracking.current) {
-          wasTracking.current = true;
-          onFaceDetected?.(face, flat, confidence);
-        }
+            lastFaceTime.current = performance.now();
 
-        onFaceUpdate?.(face, flat, confidence);
-      } else {
-        if (wasTracking.current && now - lastFaceTime.current > FACE_LOST_TIMEOUT_MS) {
-          wasTracking.current = false;
-          onFaceLost?.();
-        }
-      }
+            if (!wasTracking.current) {
+              wasTracking.current = true;
+              onFaceDetected?.(face, descriptor, confidence);
+            }
+
+            onFaceUpdate?.(face, descriptor, confidence);
+          } else {
+            const elapsed = performance.now() - lastFaceTime.current;
+            if (wasTracking.current && elapsed > FACE_LOST_TIMEOUT_MS) {
+              wasTracking.current = false;
+              onFaceLost?.();
+            }
+          }
+        })
+        .catch(() => {
+          detectingRef.current = false;
+        });
     }
 
     rafRef.current = requestAnimationFrame(loop);

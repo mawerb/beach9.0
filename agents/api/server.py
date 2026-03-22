@@ -22,7 +22,6 @@ from agents.services.face_db import (
 from agents.services.face_matching import (
     VECTOR_DIM,
     find_best_match,
-    normalize_landmarks,
 )
 
 log = logging.getLogger(__name__)
@@ -82,17 +81,15 @@ async def enroll_face(req: EnrollRequest):
     if len(req.landmarks) != VECTOR_DIM:
         raise HTTPException(
             status_code=422,
-            detail=f"Expected {VECTOR_DIM} landmark values (478 x 3), got {len(req.landmarks)}",
+            detail=f"Expected {VECTOR_DIM} face descriptor values, got {len(req.landmarks)}",
         )
-
-    normalised = normalize_landmarks(req.landmarks)
 
     try:
         face_id = await store_face(
             person_name=req.person_name,
             relationship=req.relationship,
             relationship_type=req.relationship_type,
-            landmarks=normalised,
+            landmarks=req.landmarks,
         )
     except (ServerSelectionTimeoutError, ConnectionFailure) as exc:
         _db_unavailable(exc)
@@ -105,17 +102,15 @@ async def match_face(req: MatchRequest):
     if len(req.landmarks) != VECTOR_DIM:
         raise HTTPException(
             status_code=422,
-            detail=f"Expected {VECTOR_DIM} landmark values (478 x 3), got {len(req.landmarks)}",
+            detail=f"Expected {VECTOR_DIM} face descriptor values, got {len(req.landmarks)}",
         )
-
-    normalised = normalize_landmarks(req.landmarks)
 
     try:
         stored = await get_all_landmarks()
     except (ServerSelectionTimeoutError, ConnectionFailure) as exc:
         _db_unavailable(exc)
 
-    result = find_best_match(normalised, stored)
+    result = find_best_match(req.landmarks, stored)
 
     if result is None:
         return MatchResponse(match=None)

@@ -1,14 +1,10 @@
 """
-Face landmark normalization and matching.
+Face descriptor matching.
 
-Landmarks are 478 3D points from MediaPipe FaceLandmarker.
-Normalized (centered on nose, scaled by inter-eye distance),
-then compared via Euclidean distance on the normalized vectors.
-
-Cosine similarity is too permissive for landmarks because all faces
-share the same topology — even different people score >0.99.
-Euclidean distance on normalized landmarks captures the actual
-geometric differences between face shapes.
+Uses 128-dimensional face descriptors from face-api.js (FaceNet-based).
+Descriptors are pre-normalized by the model, so we compare directly
+via Euclidean distance. Threshold of ~0.6 cleanly separates same vs
+different people.
 """
 
 import logging
@@ -17,31 +13,7 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
-NOSE_TIP_IDX = 1
-LEFT_EYE_IDX = 33
-RIGHT_EYE_IDX = 263
-LANDMARK_COUNT = 478
-VECTOR_DIM = LANDMARK_COUNT * 3
-
-
-def normalize_landmarks(raw: list[float]) -> list[float]:
-    """
-    Normalize a flat [x0,y0,z0, x1,y1,z1, ...] landmark vector.
-
-    Centers on the nose tip and scales so the inter-eye distance equals 1.
-    """
-    arr = np.array(raw, dtype=np.float64).reshape(LANDMARK_COUNT, 3)
-
-    center = arr[NOSE_TIP_IDX].copy()
-    arr -= center
-
-    left_eye = arr[LEFT_EYE_IDX]
-    right_eye = arr[RIGHT_EYE_IDX]
-    eye_dist = np.linalg.norm(left_eye - right_eye)
-    if eye_dist > 1e-8:
-        arr /= eye_dist
-
-    return arr.flatten().tolist()
+VECTOR_DIM = 128
 
 
 def euclidean_distance(a: list[float], b: list[float]) -> float:
@@ -51,18 +23,18 @@ def euclidean_distance(a: list[float], b: list[float]) -> float:
 
 
 def find_best_match(
-    query_landmarks: list[float],
+    query_descriptor: list[float],
     stored_faces: list[dict],
-    max_distance: float = 3.5,
+    max_distance: float = 0.6,
 ) -> dict | None:
     """
-    Compare query landmarks against all stored faces using Euclidean distance.
+    Compare a 128-dim face descriptor against all stored faces.
 
     Lower distance = more similar. max_distance is the cutoff —
     distances above this are considered "unknown".
 
     stored_faces: list of dicts with keys '_id', 'person_name', 'landmarks'.
-    Returns {'face_id', 'person_name', 'relationship', 'score', 'distance'} or None.
+    Returns {'face_id', 'person_name', 'relationship', 'distance'} or None.
     """
     if not stored_faces:
         return None
@@ -71,7 +43,7 @@ def find_best_match(
     best_face = None
 
     for face in stored_faces:
-        dist = euclidean_distance(query_landmarks, face["landmarks"])
+        dist = euclidean_distance(query_descriptor, face["landmarks"])
         log.info("  vs %-20s  distance=%.4f", face["person_name"], dist)
         if dist < best_dist:
             best_dist = dist
@@ -85,7 +57,6 @@ def find_best_match(
             "face_id": best_face["_id"],
             "person_name": best_face["person_name"],
             "relationship": best_face.get("relationship", ""),
-            "score": round(best_dist, 4),
             "distance": round(best_dist, 4),
         }
     return None
