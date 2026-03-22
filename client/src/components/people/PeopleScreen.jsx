@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, MagnifyingGlass, ArrowUp, ArrowDown, CaretDown, CheckCircle, Users } from '@phosphor-icons/react';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { Plus, MagnifyingGlass, ArrowUp, ArrowDown, CaretDown, CheckCircle, Users, Spinner } from '@phosphor-icons/react';
 import { RELATIONSHIP_COLORS } from '../../mock/mockData';
+import { fetchPeople } from '../../services/peopleApi';
 
 const FILTER_TYPES = [
   { value: null,        label: 'All' },
@@ -22,16 +22,17 @@ function PersonDetail({ person }) {
     return (
       <div style={styles.emptyDetail}>
         <Users size={40} color="rgba(255,255,255,0.12)" />
-        <p style={styles.emptyDetailText}>Select a person to see their description</p>
+        <p style={styles.emptyDetailText}>Select a person to see their details</p>
       </div>
     );
   }
 
   const accentColor = RELATIONSHIP_COLORS[person.relationshipType] || 'rgba(255,255,255,0.2)';
+  const synopsis = person.synopsis;
+  const conversations = person.conversations || [];
 
   return (
     <div style={styles.detail}>
-      {/* Avatar + name */}
       <div style={styles.detailProfile}>
         <div style={{ ...styles.detailAvatar, background: accentColor }}>
           <span style={styles.detailInitials}>
@@ -42,49 +43,88 @@ function PersonDetail({ person }) {
         <span style={{ ...styles.detailBadge, background: accentColor }}>
           {person.relationship}
         </span>
+        {person.conversationCount > 0 && (
+          <span style={styles.convCount}>
+            {person.conversationCount} conversation{person.conversationCount !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
-      {/* Notes */}
-      {person.notes && (
-        <p style={styles.detailNotes}>{person.notes}</p>
-      )}
-
-      {/* Interests */}
-      {person.interests?.length > 0 && (
+      {synopsis && (
         <div style={styles.detailSection}>
-          <h3 style={styles.detailSectionTitle}>Interests</h3>
-          <div style={styles.detailPills}>
-            {person.interests.map((interest) => (
-              <span key={interest} style={styles.detailPill}>{interest}</span>
-            ))}
-          </div>
+          <h3 style={styles.detailSectionTitle}>Latest Synopsis</h3>
+          {synopsis.synopsis && (
+            <p style={styles.synopsisText}>{synopsis.synopsis}</p>
+          )}
+          {synopsis.key_points?.length > 0 && (
+            <div style={styles.keyPointsList}>
+              {synopsis.key_points.map((point, i) => (
+                <div key={i} style={styles.keyPointRow}>
+                  <span style={styles.keyBullet}>•</span>
+                  <span style={styles.keyText}>{point}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {synopsis.recognition_cues?.length > 0 && (
+            <div style={styles.cuesBlock}>
+              <span style={styles.cuesLabel}>Remember:</span>
+              {synopsis.recognition_cues.map((cue, i) => (
+                <span key={i} style={styles.cuePill}>{cue}</span>
+              ))}
+            </div>
+          )}
+          {synopsis.next_steps?.length > 0 && (
+            <div style={styles.nextStepsBlock}>
+              <span style={styles.nextStepsLabel}>Next steps:</span>
+              {synopsis.next_steps.map((step, i) => (
+                <span key={i} style={styles.nextStepText}>{step}</span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Conversation history */}
-      {person.conversationHistory?.length > 0 && (
+      {conversations.length > 0 && (
         <div style={styles.detailSection}>
           <h3 style={styles.detailSectionTitle}>Conversation History</h3>
           <div style={styles.timeline}>
-            {person.conversationHistory.map((conv, i) => (
-              <div key={i} style={{ ...styles.timelineItem, borderColor: accentColor + '55' }}>
+            {conversations.map((conv, i) => (
+              <div key={conv.id || i} style={{ ...styles.timelineItem, borderColor: accentColor + '55' }}>
                 <span style={styles.timelineDate}>
-                  {new Date(conv.date).toLocaleDateString(undefined, {
-                    month: 'long', day: 'numeric', year: 'numeric',
-                  })}
+                  {conv.lastMessageAt
+                    ? new Date(conv.lastMessageAt).toLocaleDateString(undefined, {
+                        month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })
+                    : 'Unknown date'}
                 </span>
-                <p style={styles.timelineSummary}>{conv.summary}</p>
+                {conv.synopsis?.synopsis && (
+                  <p style={styles.timelineSummary}>{conv.synopsis.synopsis}</p>
+                )}
+                {conv.synopsis?.key_points?.length > 0 && (
+                  <div style={styles.timelinePoints}>
+                    {conv.synopsis.key_points.slice(0, 3).map((pt, j) => (
+                      <span key={j} style={styles.timelinePoint}>• {pt}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {!synopsis && conversations.length === 0 && (
+        <p style={styles.detailNotes}>No conversations recorded yet.</p>
       )}
     </div>
   );
 }
 
 export default function PeopleScreen() {
-  const people = useSettingsStore((s) => s.people);
+  const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [search, setSearch]         = useState('');
   const [filterType, setFilterType] = useState(null);
@@ -93,6 +133,26 @@ export default function PeopleScreen() {
   const [sortOpen, setSortOpen]     = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const sortRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchPeople()
+      .then((data) => {
+        if (!cancelled) {
+          setPeople(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn('Failed to load people:', err);
+          setError('Could not load people. Is the API server running?');
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -114,8 +174,8 @@ export default function PeopleScreen() {
         const cmp = a.name.localeCompare(b.name);
         return sortDir === 'asc' ? cmp : -cmp;
       }
-      const dateA = a.conversationHistory?.[0]?.date ? new Date(a.conversationHistory[0].date) : new Date(0);
-      const dateB = b.conversationHistory?.[0]?.date ? new Date(b.conversationHistory[0].date) : new Date(0);
+      const dateA = a.lastMessageAt ? new Date(a.lastMessageAt) : new Date(0);
+      const dateB = b.lastMessageAt ? new Date(b.lastMessageAt) : new Date(0);
       const cmp = dateA - dateB;
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -128,7 +188,6 @@ export default function PeopleScreen() {
   return (
     <div style={styles.root}>
       <div style={styles.screen}>
-        {/* Page header */}
         <div style={styles.header}>
           <h1 style={styles.title}>People</h1>
           <button style={styles.addBtn} aria-label="Add person">
@@ -136,12 +195,9 @@ export default function PeopleScreen() {
           </button>
         </div>
 
-        {/* Split panel */}
         <div style={styles.splitPanel}>
 
-          {/* ── Left nav ── */}
           <div style={styles.nav}>
-            {/* Search */}
             <div style={styles.searchRow}>
               <MagnifyingGlass size={14} color="rgba(255,255,255,0.4)" />
               <input
@@ -152,7 +208,6 @@ export default function PeopleScreen() {
               />
             </div>
 
-            {/* Filter chips */}
             <div style={styles.filterRow}>
               {FILTER_TYPES.map(({ value, label }) => {
                 const isActive = filterType === value;
@@ -174,7 +229,6 @@ export default function PeopleScreen() {
               })}
             </div>
 
-            {/* Sort controls */}
             <div style={styles.sortRow}>
               <div ref={sortRef} style={{ position: 'relative', flex: 1 }}>
                 <button style={styles.sortBtn} onClick={() => setSortOpen((o) => !o)}>
@@ -216,9 +270,15 @@ export default function PeopleScreen() {
               </button>
             </div>
 
-            {/* Person list */}
             <div style={styles.list}>
-              {visible.length === 0 ? (
+              {loading ? (
+                <div style={styles.loadingRow}>
+                  <Spinner size={18} color="rgba(255,255,255,0.3)" />
+                  <span style={styles.loadingText}>Loading people…</span>
+                </div>
+              ) : error ? (
+                <p style={styles.empty}>{error}</p>
+              ) : visible.length === 0 ? (
                 <p style={styles.empty}>No people found.</p>
               ) : (
                 visible.map((person) => {
@@ -226,13 +286,13 @@ export default function PeopleScreen() {
                   const accentColor = RELATIONSHIP_COLORS[person.relationshipType] || 'rgba(255,255,255,0.2)';
                   return (
                     <button
-                      key={person.id}
+                      key={person.id || person.name}
                       style={{
                         ...styles.row,
                         background: isSelected ? 'rgba(74,124,111,0.15)' : 'rgba(255,255,255,0.04)',
                         borderColor: isSelected ? 'rgba(74,124,111,0.5)' : 'rgba(255,255,255,0.08)',
                       }}
-                      onClick={() => setSelectedId(isSelected ? null : person.id)}
+                      onClick={() => setSelectedId(isSelected ? null : (person.id || person.name))}
                     >
                       <div style={{ ...styles.avatar, background: accentColor }}>
                         <span style={styles.initials}>
@@ -248,9 +308,9 @@ export default function PeopleScreen() {
                         </span>
                         <span style={styles.rel}>{person.relationship}</span>
                       </div>
-                      {person.conversationHistory?.[0] && (
+                      {person.lastMessageAt && (
                         <span style={styles.date}>
-                          {new Date(person.conversationHistory[0].date).toLocaleDateString(undefined, {
+                          {new Date(person.lastMessageAt).toLocaleDateString(undefined, {
                             month: 'short', day: 'numeric',
                           })}
                         </span>
@@ -262,10 +322,8 @@ export default function PeopleScreen() {
             </div>
           </div>
 
-          {/* ── Divider ── */}
           <div style={styles.divider} />
 
-          {/* ── Right detail ── */}
           <div style={styles.detailPane}>
             <PersonDetail person={selectedPerson} />
           </div>
@@ -634,5 +692,110 @@ const styles = {
     fontSize: 10,
     color: 'rgba(255,255,255,0.3)',
     flexShrink: 0,
+  },
+  loadingRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 24,
+  },
+  loadingText: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.3)',
+  },
+  convCount: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.35)',
+  },
+  synopsisText: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 1.6,
+    marginBottom: 10,
+  },
+  keyPointsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    marginBottom: 10,
+  },
+  keyPointRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  keyBullet: {
+    color: 'var(--color-sage)',
+    fontSize: 14,
+    lineHeight: 1.55,
+    flexShrink: 0,
+  },
+  keyText: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 1.55,
+  },
+  cuesBlock: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  cuesLabel: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'rgba(255,255,255,0.35)',
+  },
+  cuePill: {
+    padding: '3px 10px',
+    background: 'rgba(74,124,111,0.15)',
+    border: '1px solid rgba(74,124,111,0.3)',
+    borderRadius: 999,
+    fontFamily: 'var(--font-body)',
+    fontSize: 12,
+    color: 'var(--color-sage)',
+    fontStyle: 'italic',
+  },
+  nextStepsBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  nextStepsLabel: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'rgba(255,255,255,0.35)',
+    marginBottom: 2,
+  },
+  nextStepText: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.55)',
+    lineHeight: 1.5,
+    paddingLeft: 12,
+  },
+  timelinePoints: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    marginTop: 4,
+  },
+  timelinePoint: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
+    lineHeight: 1.4,
   },
 };

@@ -6,6 +6,7 @@ export const useARStore = create((set) => ({
   detectionStatus: 'idle',
   panelVisible: false,
   confidenceScore: 0,
+  synopsis: null,
 
   setFaceDetected: (face, person, confidence) =>
     set({
@@ -29,6 +30,7 @@ export const useARStore = create((set) => ({
       detectionStatus: 'unknown',
       panelVisible: false,
       confidenceScore: 0,
+      synopsis: null,
     }),
 
   setFaceLost: () =>
@@ -38,7 +40,10 @@ export const useARStore = create((set) => ({
       detectionStatus: 'idle',
       panelVisible: false,
       confidenceScore: 0,
+      synopsis: null,
     }),
+
+  setSynopsis: (synopsis) => set({ synopsis }),
 
   setPanelVisible: (visible) => set({ panelVisible: visible }),
 }));

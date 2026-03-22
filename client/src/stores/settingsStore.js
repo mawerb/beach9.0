@@ -6,6 +6,7 @@ export const useSettingsStore = create(
   persist(
     (set, get) => ({
       userMode: null,
+      speechLang: 'en-US',
       people: MOCK_PEOPLE,
       conversations: MOCK_CONVERSATIONS,
 
@@ -13,6 +14,8 @@ export const useSettingsStore = create(
         document.documentElement.setAttribute('data-theme', mode);
         set({ userMode: mode });
       },
+
+      setSpeechLang: (lang) => set({ speechLang: lang }),
 
       addPerson: (person) =>
         set((state) => ({ people: [...state.people, person] })),
@@ -38,6 +41,7 @@ export const useSettingsStore = create(
       name: 'conversation-helper-settings',
       partialize: (state) => ({
         userMode: state.userMode,
+        speechLang: state.speechLang,
         people: state.people,
         conversations: state.conversations,
       }),

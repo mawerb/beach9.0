@@ -8,6 +8,7 @@ export default function InfoCard({ containerRef }) {
   const currentPerson = useARStore((s) => s.currentPerson);
   const detectionStatus = useARStore((s) => s.detectionStatus);
   const confidenceScore = useARStore((s) => s.confidenceScore);
+  const synopsis = useARStore((s) => s.synopsis);
   const userMode = useSettingsStore((s) => s.userMode);
 
   if (!currentFace || !currentPerson || detectionStatus === 'idle') return null;
@@ -21,15 +22,15 @@ export default function InfoCard({ containerRef }) {
 
   const isOccluded = detectionStatus === 'occluded';
   const isDementia = userMode === 'dementia';
-  const synopsis = currentPerson.conversationHistory?.[0]?.summary;
-  const cardHeight = isDementia ? 80 : (synopsis ? 138 : 100);
   const accentColor = RELATIONSHIP_COLORS[currentPerson.relationshipType] || 'var(--color-sage)';
 
   const isLowConfidence = confidenceScore < 0.7;
   const displayName = isLowConfidence ? `${currentPerson.name}?` : currentPerson.name;
 
-  const tetherStartX = cardX;
-  const tetherStartY = cardY + cardHeight;
+  const hasSynopsis = synopsis && synopsis.synopsis;
+  const hasKeyPoints = synopsis && synopsis.key_points && synopsis.key_points.length > 0;
+  const hasRecognitionCues = synopsis && synopsis.recognition_cues && synopsis.recognition_cues.length > 0;
+
   const tetherEndX = (currentFace.x + currentFace.width) * rect.width;
   const tetherEndY = currentFace.y * rect.height;
 
@@ -40,8 +41,8 @@ export default function InfoCard({ containerRef }) {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
         >
           <line
-            x1={tetherStartX}
-            y1={tetherStartY}
+            x1={cardX}
+            y1={Math.max(8, cardY) + 40}
             x2={tetherEndX}
             y2={tetherEndY}
             stroke="rgba(255,255,255,0.3)"
@@ -63,8 +64,6 @@ export default function InfoCard({ containerRef }) {
           transition={{ type: 'spring', stiffness: 180, damping: 24 }}
           style={{
             ...styles.card,
-            width: 220,
-            height: cardHeight,
             borderColor: isLowConfidence ? 'var(--color-amber)' : 'var(--color-ar-border)',
             borderStyle: isLowConfidence ? 'dashed' : 'solid',
           }}
@@ -73,43 +72,73 @@ export default function InfoCard({ containerRef }) {
 
           <div style={styles.content}>
             <div style={styles.nameRow}>
-              <span style={{ ...styles.name, fontSize: `var(--font-size-name)` }}>
+              <span style={{ ...styles.name, fontSize: 'var(--font-size-name)' }}>
                 {displayName}
               </span>
-              {!isDementia && confidenceScore > 0 && (
-                <div style={styles.confidenceDots}>
-                  {[0.3, 0.6, 0.9].map((threshold, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        ...styles.dot,
-                        background:
-                          confidenceScore >= threshold
-                            ? 'rgba(0,0,0,0.7)'
-                            : 'rgba(0,0,0,0.15)',
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
+              <span style={{ ...styles.relationshipBubble, background: accentColor }}>
+                {currentPerson.relationship}
+              </span>
             </div>
 
-            <span
-              style={{
-                ...styles.badge,
-                background: accentColor,
-              }}
-            >
-              {currentPerson.relationship}
-            </span>
-
-            {!isDementia && currentPerson.lastConversationTopic && (
-              <p style={styles.lastTopic}>
-                Last: {currentPerson.lastConversationTopic}
-              </p>
+            {!isDementia && confidenceScore > 0 && (
+              <div style={styles.confidenceDots}>
+                {[0.3, 0.6, 0.9].map((threshold, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      ...styles.dot,
+                      background:
+                        confidenceScore >= threshold
+                          ? 'rgba(0,0,0,0.7)'
+                          : 'rgba(0,0,0,0.15)',
+                    }}
+                  />
+                ))}
+              </div>
             )}
-            {!isDementia && synopsis && (
-              <p style={styles.synopsis}>{synopsis}</p>
+
+            {hasSynopsis && (
+              <motion.p
+                key={synopsis.synopsis}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={styles.synopsisText}
+              >
+                {synopsis.synopsis}
+              </motion.p>
+            )}
+
+            {hasKeyPoints && (
+              <motion.div
+                key={synopsis.key_points.join(',')}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={styles.keyPointsSection}
+              >
+                {synopsis.key_points.slice(0, 3).map((point, i) => (
+                  <div key={i} style={styles.keyPoint}>
+                    <span style={styles.keyPointBullet}>•</span>
+                    <span style={styles.keyPointText}>{point}</span>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+
+            {hasRecognitionCues && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={styles.cuesSection}
+              >
+                <span style={styles.cuesLabel}>Remember</span>
+                <span style={styles.cuesText}>
+                  {synopsis.recognition_cues.slice(0, 2).join(' · ')}
+                </span>
+              </motion.div>
+            )}
+
+            {!hasSynopsis && !hasKeyPoints && (
+              <p style={styles.placeholder}>Listening…</p>
             )}
           </div>
         </motion.div>
@@ -123,7 +152,8 @@ const styles = {
     position: 'absolute',
     top: 0,
     left: 0,
-    background: 'rgba(255, 255, 255, 0.1)',
+    width: 230,
+    background: 'rgba(255, 255, 255, 0.12)',
     backdropFilter: 'blur(32px) saturate(200%)',
     WebkitBackdropFilter: 'blur(32px) saturate(200%)',
     borderWidth: 1,
@@ -138,65 +168,117 @@ const styles = {
     width: '100%',
   },
   content: {
-    padding: '8px 12px',
+    padding: '8px 12px 10px',
   },
   nameRow: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   name: {
     fontFamily: 'var(--font-body)',
     fontWeight: 600,
-    color: 'rgba(0,0,0,0.85)',
+    color: 'rgba(0,0,0,0.88)',
     lineHeight: 1.2,
+  },
+  relationshipBubble: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '2px 10px',
+    borderRadius: 999,
+    fontFamily: 'var(--font-body)',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#fff',
+    letterSpacing: '0.03em',
+    textTransform: 'capitalize',
+    whiteSpace: 'nowrap',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
   },
   confidenceDots: {
     display: 'flex',
     gap: 3,
     alignItems: 'center',
+    marginTop: 4,
   },
   dot: {
     width: 4,
     height: 10,
     borderRadius: 2,
   },
-  badge: {
-    display: 'inline-block',
-    marginTop: 4,
-    padding: '1px 8px',
-    borderRadius: 'var(--radius-full)',
-    fontFamily: 'var(--font-body)',
-    fontSize: 13,
-    fontWeight: 500,
-    color: 'rgba(0,0,0,0.75)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  },
-  lastTopic: {
-    marginTop: 4,
+  synopsisText: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTop: '1px solid rgba(0,0,0,0.08)',
     fontFamily: 'var(--font-body)',
     fontSize: 12,
-    fontWeight: 300,
-    fontStyle: 'italic',
+    fontWeight: 400,
+    color: 'rgba(0,0,0,0.7)',
+    lineHeight: 1.4,
+    display: '-webkit-box',
+    WebkitLineClamp: 3,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  },
+  keyPointsSection: {
+    marginTop: 5,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  keyPoint: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 5,
+  },
+  keyPointBullet: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 11,
+    color: 'rgba(0,0,0,0.4)',
+    lineHeight: 1.35,
+    flexShrink: 0,
+  },
+  keyPointText: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 11,
+    fontWeight: 400,
     color: 'rgba(0,0,0,0.6)',
-    lineHeight: 1.3,
+    lineHeight: 1.35,
+  },
+  cuesSection: {
+    marginTop: 5,
+    paddingTop: 5,
+    borderTop: '1px solid rgba(0,0,0,0.06)',
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  cuesLabel: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 9,
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'rgba(0,0,0,0.35)',
+    flexShrink: 0,
+  },
+  cuesText: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 11,
+    fontWeight: 500,
+    color: 'rgba(0,0,0,0.6)',
+    fontStyle: 'italic',
     overflow: 'hidden',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
   },
-  synopsis: {
-    marginTop: 5,
-    paddingTop: 5,
-    borderTop: '1px solid rgba(0,0,0,0.08)',
-    fontFamily: 'var(--font-body)',
+  placeholder: {
+    marginTop: 6,
+    fontFamily: 'var(--font-mono)',
     fontSize: 11,
     fontWeight: 400,
-    color: 'rgba(0,0,0,0.55)',
-    lineHeight: 1.35,
-    display: '-webkit-box',
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden',
+    color: 'rgba(0,0,0,0.3)',
+    fontStyle: 'italic',
   },
 };

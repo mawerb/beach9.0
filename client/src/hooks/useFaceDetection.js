@@ -8,6 +8,9 @@ const MODEL_CDN =
 const DETECT_INTERVAL_MS = 150;
 const FACE_LOST_TIMEOUT_MS = 1500;
 
+const MAR_CALIBRATION_FRAMES = 20;
+const MAR_OPEN_MULTIPLIER = 1.6;
+
 let _initPromise = null;
 
 async function initFaceApi() {
@@ -38,11 +41,26 @@ async function initFaceApi() {
   return _initPromise;
 }
 
+function dist(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function computeMAR(landmarks) {
+  const pts = landmarks.positions;
+  const vertical = (dist(pts[61], pts[67]) + dist(pts[62], pts[66])) / 2;
+  const horizontal = dist(pts[60], pts[64]);
+  if (horizontal === 0) return 0;
+  return vertical / horizontal;
+}
+
 /**
- * Callbacks receive (face, descriptor, confidence):
+ * Callbacks receive (face, descriptor, confidence, mouthOpen):
  *   face       – normalised bounding box {x, y, width, height} (mirrored)
  *   descriptor – 128-element Float32 array (face-api.js face descriptor)
  *   confidence – 0-1 detection score
+ *   mouthOpen  – boolean, true when detected person's mouth is open (MAR-based)
  */
 export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetected, onFaceLost }) {
   const rafRef = useRef(null);
@@ -52,6 +70,10 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
   const faceapiRef = useRef(null);
   const detectingRef = useRef(false);
 
+  const marSamples = useRef([]);
+  const marThreshold = useRef(null);
+  const mouthOpenRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -59,7 +81,7 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
       .then((faceapi) => {
         if (!cancelled) {
           faceapiRef.current = faceapi;
-          console.log('face-api.js ready (128-dim descriptors)');
+          console.log('face-api.js ready (128-dim descriptors + MAR)');
         }
       })
       .catch((err) => console.warn('face-api.js init failed:', err));
@@ -104,18 +126,37 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
             const descriptor = Array.from(detection.descriptor);
             const confidence = detection.detection.score;
 
+            const mar = computeMAR(detection.landmarks);
+
+            if (marThreshold.current === null) {
+              marSamples.current.push(mar);
+              if (marSamples.current.length >= MAR_CALIBRATION_FRAMES) {
+                const avg = marSamples.current.reduce((a, b) => a + b, 0) / marSamples.current.length;
+                marThreshold.current = avg * MAR_OPEN_MULTIPLIER;
+                console.log(`MAR calibrated: resting=${avg.toFixed(3)}, threshold=${marThreshold.current.toFixed(3)}`);
+              }
+            }
+
+            const mouthOpen = marThreshold.current !== null && mar > marThreshold.current;
+            mouthOpenRef.current = mouthOpen;
+
             lastFaceTime.current = performance.now();
 
             if (!wasTracking.current) {
               wasTracking.current = true;
-              onFaceDetected?.(face, descriptor, confidence);
+              marSamples.current = [];
+              marThreshold.current = null;
+              onFaceDetected?.(face, descriptor, confidence, mouthOpen);
             }
 
-            onFaceUpdate?.(face, descriptor, confidence);
+            onFaceUpdate?.(face, descriptor, confidence, mouthOpen);
           } else {
             const elapsed = performance.now() - lastFaceTime.current;
             if (wasTracking.current && elapsed > FACE_LOST_TIMEOUT_MS) {
               wasTracking.current = false;
+              mouthOpenRef.current = false;
+              marSamples.current = [];
+              marThreshold.current = null;
               onFaceLost?.();
             }
           }
@@ -130,4 +171,6 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [videoRef, onFaceUpdate, onFaceDetected, onFaceLost]);
+
+  return { mouthOpenRef };
 }

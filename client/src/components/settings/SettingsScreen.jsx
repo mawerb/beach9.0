@@ -1,5 +1,21 @@
-import { Brain, Heart, ChatCircleDots } from '@phosphor-icons/react';
+import { Brain, Heart, ChatCircleDots, Translate } from '@phosphor-icons/react';
 import { useSettingsStore } from '../../stores/settingsStore';
+
+const LANGUAGES = [
+  { code: 'en-US', label: 'English (US)' },
+  { code: 'en-GB', label: 'English (UK)' },
+  { code: 'es-ES', label: 'Spanish' },
+  { code: 'fr-FR', label: 'French' },
+  { code: 'de-DE', label: 'German' },
+  { code: 'it-IT', label: 'Italian' },
+  { code: 'pt-BR', label: 'Portuguese (BR)' },
+  { code: 'zh-CN', label: 'Chinese (Mandarin)' },
+  { code: 'ja-JP', label: 'Japanese' },
+  { code: 'ko-KR', label: 'Korean' },
+  { code: 'ar-SA', label: 'Arabic' },
+  { code: 'hi-IN', label: 'Hindi' },
+  { code: 'he-IL', label: 'Hebrew' },
+];
 
 const MODES = [
   {
@@ -28,6 +44,8 @@ const MODES = [
 export default function SettingsScreen() {
   const userMode = useSettingsStore((s) => s.userMode);
   const setUserMode = useSettingsStore((s) => s.setUserMode);
+  const speechLang = useSettingsStore((s) => s.speechLang);
+  const setSpeechLang = useSettingsStore((s) => s.setSpeechLang);
   const activeMode = MODES.find((m) => m.id === userMode);
 
   return (
@@ -79,6 +97,22 @@ export default function SettingsScreen() {
             ? activeMode.about
             : 'InTouch is an AR-powered conversation assistant that helps you stay connected with the people in your life.'}
         </p>
+      </div>
+
+      <div style={styles.section}>
+        <h3 style={styles.sectionTitle}>
+          <Translate size={13} style={{ marginRight: 6, verticalAlign: -1 }} />
+          Speech Language
+        </h3>
+        <select
+          value={speechLang}
+          onChange={(e) => setSpeechLang(e.target.value)}
+          style={styles.langSelect}
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code}>{l.label}</option>
+          ))}
+        </select>
       </div>
     </div>
     </div>
@@ -150,5 +184,23 @@ const styles = {
     fontSize: 15,
     color: 'rgba(255,255,255,0.5)',
     lineHeight: 1.7,
+  },
+  langSelect: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: '1.5px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.06)',
+    color: 'rgba(255,255,255,0.9)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 15,
+    cursor: 'pointer',
+    outline: 'none',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    backgroundSize: '10px 6px',
   },
 };
