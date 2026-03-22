@@ -1,9 +1,18 @@
 import { useEffect, useRef } from 'react';
+import { useARStore } from '../stores/arStore';
 
-const FACE_API_CDN =
-  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
-const MODEL_CDN =
+/**
+ * Same-origin models (copied by `npm install` → postinstall).
+ * Avoids jsDelivr fetches that can hang indefinitely with no console error.
+ */
+const MODEL_BASE = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+const MODEL_URI = `${MODEL_BASE}/face-models`;
+
+/** Fallback if public/face-models missing (e.g. skipped postinstall) */
+const MODEL_CDN_FALLBACK =
   'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+
+const INIT_TIMEOUT_MS = 90_000;
 
 const DETECT_INTERVAL_MS = 150;
 const FACE_LOST_TIMEOUT_MS = 1500;
@@ -15,30 +24,78 @@ const MAR_MAX_RESTING_SAMPLE = 0.35;
 
 let _initPromise = null;
 
+function withTimeout(promise, ms, label) {
+  let t;
+  const timeout = new Promise((_, reject) => {
+    t = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${label} timed out after ${Math.round(ms / 1000)}s (network or TensorFlow backend stuck)`,
+          ),
+        ),
+      ms,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+}
+
 async function initFaceApi() {
   if (_initPromise) return _initPromise;
 
-  _initPromise = (async () => {
-    if (!window.faceapi) {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = FACE_API_CDN;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
+  const run = async () => {
+    console.info('[face-api] importing @vladmandic/face-api…');
+    const mod = await import('@vladmandic/face-api');
+    const faceapi = mod.default ?? mod;
+
+    if (!faceapi?.nets?.tinyFaceDetector) {
+      throw new Error('face-api: invalid module shape (missing nets)');
     }
 
-    const faceapi = window.faceapi;
+    const tf = faceapi.tf ?? mod.tf;
+    if (tf?.ready) {
+      console.info('[face-api] waiting for TensorFlow backend…');
+      await tf.ready();
+    }
 
-    await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_CDN),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_CDN),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_CDN),
-    ]);
+    async function loadModels(baseUri) {
+      console.info('[face-api] loading model weights from', baseUri);
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(baseUri),
+        faceapi.nets.faceLandmark68TinyNet.loadFromUri(baseUri),
+        faceapi.nets.faceRecognitionNet.loadFromUri(baseUri),
+      ]);
+    }
 
+    try {
+      await loadModels(MODEL_URI);
+    } catch (firstErr) {
+      console.warn(
+        '[face-api] local models failed, trying CDN fallback…',
+        firstErr,
+      );
+      await loadModels(MODEL_CDN_FALLBACK);
+    }
+
+    console.info('[face-api] init complete');
     return faceapi;
-  })();
+  };
+
+  _initPromise = withTimeout(run(), INIT_TIMEOUT_MS, 'Face detection').catch(
+    (err) => {
+      _initPromise = null;
+      const msg =
+        err instanceof Error
+          ? err.message
+          : err && typeof err === 'object' && 'message' in err
+            ? String(err.message)
+            : typeof err === 'object' && err !== null && 'type' in err
+              ? `Load error (${err.type})`
+              : String(err);
+      console.warn('face-api init failed:', msg, err);
+      throw err instanceof Error ? err : new Error(msg);
+    },
+  );
 
   return _initPromise;
 }
@@ -76,19 +133,37 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
   const marThreshold = useRef(null);
   const mouthOpenRef = useRef(false);
 
+  // Latest callbacks without restarting RAF when parent re-renders (fixes stuck wasTracking + no matchFace).
+  const callbacksRef = useRef({ onFaceUpdate, onFaceDetected, onFaceLost });
+  callbacksRef.current = { onFaceUpdate, onFaceDetected, onFaceLost };
+
   useEffect(() => {
     let cancelled = false;
+    const setEngine = useARStore.getState().setFaceEngineState;
+
+    setEngine({ status: 'loading', error: null });
 
     initFaceApi()
       .then((faceapi) => {
-        if (!cancelled) {
-          faceapiRef.current = faceapi;
-          console.log('face-api.js ready (128-dim descriptors + MAR)');
-        }
+        if (cancelled) return;
+        faceapiRef.current = faceapi;
+        setEngine({ status: 'ready', error: null });
+        console.log('face-api ready (128-dim descriptors + MAR)');
       })
-      .catch((err) => console.warn('face-api.js init failed:', err));
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('face-api init failed:', err);
+        if (!cancelled) {
+          setEngine({
+            status: 'error',
+            error: msg || 'Could not load face detection. Check network / ad blockers.',
+          });
+        }
+      });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -106,7 +181,7 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
       detectingRef.current = true;
 
       faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
         .withFaceLandmarks(true)
         .withFaceDescriptor()
         .then((detection) => {
@@ -158,10 +233,10 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
               wasTracking.current = true;
               marSamples.current = [];
               marThreshold.current = null;
-              onFaceDetected?.(face, descriptor, confidence, mouthOpen);
+              callbacksRef.current.onFaceDetected?.(face, descriptor, confidence, mouthOpen);
             }
 
-            onFaceUpdate?.(face, descriptor, confidence, mouthOpen);
+            callbacksRef.current.onFaceUpdate?.(face, descriptor, confidence, mouthOpen);
           } else {
             const elapsed = performance.now() - lastFaceTime.current;
             if (wasTracking.current && elapsed > FACE_LOST_TIMEOUT_MS) {
@@ -169,12 +244,13 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
               mouthOpenRef.current = false;
               marSamples.current = [];
               marThreshold.current = null;
-              onFaceLost?.();
+              callbacksRef.current.onFaceLost?.();
             }
           }
         })
-        .catch(() => {
+        .catch((err) => {
           detectingRef.current = false;
+          console.warn('face detection frame failed:', err);
         });
     }
 
@@ -182,7 +258,7 @@ export default function useFaceDetection(videoRef, { onFaceUpdate, onFaceDetecte
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [videoRef, onFaceUpdate, onFaceDetected, onFaceLost]);
+  }, [videoRef]);
 
   return { mouthOpenRef };
 }

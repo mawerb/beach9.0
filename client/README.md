@@ -4,6 +4,10 @@ This folder is the **SPA** for InTouch: camera, speech, AR-style UI, and calls t
 
 From repo root, run `npm install && npm run dev` here. For full project setup see **[`../README.md`](../README.md)**.
 
+### Face detection models
+
+`npm install` runs **`postinstall`** and copies `@vladmandic/face-api` weights into **`public/face-models/`** (gitignored). The app loads them from the same origin so init doesn’t hang on blocked CDN requests. If that folder is missing, run `npm install` again in `client/` or `node scripts/copy-face-models.mjs`.
+
 ---
 
 ## React + Vite (template notes)

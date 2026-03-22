@@ -5,12 +5,20 @@ import { useARStore } from '../../stores/arStore';
 export default function StatusPill({ onEndConversation }) {
   const detectionStatus = useARStore((s) => s.detectionStatus);
   const currentPerson = useARStore((s) => s.currentPerson);
+  const faceEngineStatus = useARStore((s) => s.faceEngineStatus);
+  const faceEngineError = useARStore((s) => s.faceEngineError);
 
   let text = 'Looking for someone nearby';
   let showPulse = true;
   let showClose = false;
 
-  if (detectionStatus === 'found' && currentPerson) {
+  if (faceEngineStatus === 'error') {
+    text = faceEngineError?.slice(0, 52) || 'Face detection unavailable';
+    showPulse = false;
+  } else if (faceEngineStatus === 'loading') {
+    text = 'Loading face detection…';
+    showPulse = true;
+  } else if (detectionStatus === 'found' && currentPerson) {
     text = currentPerson.name;
     showPulse = false;
     showClose = true;

@@ -36,7 +36,7 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     now = datetime.now(tz=timezone.utc)
     if state is None:
         state = SharedAgentState(
-            chat_session_id=chat_session_id,
+         o   chat_session_id=chat_session_id,
             query=text,
             user_sender_address=sender,
             message_timestamp=now,

@@ -4,9 +4,18 @@ export const useARStore = create((set) => ({
   currentFace: null,
   currentPerson: null,
   detectionStatus: 'idle',
+  /** Face-api + model load lifecycle (separate from whether a face is in frame) */
+  faceEngineStatus: 'idle',
+  faceEngineError: null,
   panelVisible: false,
   confidenceScore: 0,
   synopsis: null,
+
+  setFaceEngineState: (payload) =>
+    set({
+      faceEngineStatus: payload.status,
+      faceEngineError: payload.error ?? null,
+    }),
 
   setFaceDetected: (face, person, confidence) =>
     set({
@@ -38,6 +47,7 @@ export const useARStore = create((set) => ({
       currentFace: null,
       currentPerson: null,
       detectionStatus: 'idle',
+      // keep faceEngineStatus so we don't re-fetch models every time face leaves frame
       panelVisible: false,
       confidenceScore: 0,
       synopsis: null,
