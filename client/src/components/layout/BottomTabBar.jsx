@@ -12,6 +12,8 @@ export default function BottomTabBar() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  if (location.pathname === '/home') return null;
+
   return (
     <nav style={styles.bar}>
       {TABS.map((tab) => {

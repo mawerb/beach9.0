@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, MagnifyingGlass, ArrowUp, ArrowDown, CaretDown, CheckCircle } from '@phosphor-icons/react';
+import { Plus, MagnifyingGlass, ArrowUp, ArrowDown, CaretDown, CheckCircle, Users } from '@phosphor-icons/react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { RELATIONSHIP_COLORS } from '../../mock/mockData';
 
@@ -13,15 +12,86 @@ const FILTER_TYPES = [
   { value: 'other',    label: 'Other' },
 ];
 
+const SORT_OPTIONS = [
+  { value: 'recent', label: 'Recently Spoken' },
+  { value: 'name',   label: 'Name' },
+];
+
+function PersonDetail({ person }) {
+  if (!person) {
+    return (
+      <div style={styles.emptyDetail}>
+        <Users size={40} color="rgba(255,255,255,0.12)" />
+        <p style={styles.emptyDetailText}>Select a person to see their description</p>
+      </div>
+    );
+  }
+
+  const accentColor = RELATIONSHIP_COLORS[person.relationshipType] || 'rgba(255,255,255,0.2)';
+
+  return (
+    <div style={styles.detail}>
+      {/* Avatar + name */}
+      <div style={styles.detailProfile}>
+        <div style={{ ...styles.detailAvatar, background: accentColor }}>
+          <span style={styles.detailInitials}>
+            {person.name.split(' ').map((n) => n[0]).join('')}
+          </span>
+        </div>
+        <h2 style={styles.detailName}>{person.name}</h2>
+        <span style={{ ...styles.detailBadge, background: accentColor }}>
+          {person.relationship}
+        </span>
+      </div>
+
+      {/* Notes */}
+      {person.notes && (
+        <p style={styles.detailNotes}>{person.notes}</p>
+      )}
+
+      {/* Interests */}
+      {person.interests?.length > 0 && (
+        <div style={styles.detailSection}>
+          <h3 style={styles.detailSectionTitle}>Interests</h3>
+          <div style={styles.detailPills}>
+            {person.interests.map((interest) => (
+              <span key={interest} style={styles.detailPill}>{interest}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Conversation history */}
+      {person.conversationHistory?.length > 0 && (
+        <div style={styles.detailSection}>
+          <h3 style={styles.detailSectionTitle}>Conversation History</h3>
+          <div style={styles.timeline}>
+            {person.conversationHistory.map((conv, i) => (
+              <div key={i} style={{ ...styles.timelineItem, borderColor: accentColor + '55' }}>
+                <span style={styles.timelineDate}>
+                  {new Date(conv.date).toLocaleDateString(undefined, {
+                    month: 'long', day: 'numeric', year: 'numeric',
+                  })}
+                </span>
+                <p style={styles.timelineSummary}>{conv.summary}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PeopleScreen() {
   const people = useSettingsStore((s) => s.people);
-  const navigate = useNavigate();
 
   const [search, setSearch]         = useState('');
   const [filterType, setFilterType] = useState(null);
   const [sortBy, setSortBy]         = useState('recent');
   const [sortDir, setSortDir]       = useState('desc');
   const [sortOpen, setSortOpen]     = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
   const sortRef = useRef(null);
 
   useEffect(() => {
@@ -31,11 +101,6 @@ export default function PeopleScreen() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
-
-  const SORT_OPTIONS = [
-    { value: 'recent', label: 'Recently Spoken' },
-    { value: 'name',   label: 'Name' },
-  ];
 
   const visible = useMemo(() => {
     let list = people.filter((p) => {
@@ -58,130 +123,155 @@ export default function PeopleScreen() {
     return list;
   }, [people, search, filterType, sortBy, sortDir]);
 
+  const selectedPerson = people.find((p) => p.id === selectedId) ?? null;
+
   return (
     <div style={styles.root}>
-    <div style={styles.screen}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>People</h1>
-        <button style={styles.addBtn} aria-label="Add person">
-          <Plus size={20} weight="bold" color="rgba(255,255,255,0.9)" />
-        </button>
-      </div>
-
-      {/* Search */}
-      <div style={styles.searchRow}>
-        <MagnifyingGlass size={15} color="rgba(255,255,255,0.4)" />
-        <input
-          style={styles.searchInput}
-          placeholder="Search people…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {/* Filter chips */}
-      <div style={styles.filterRow}>
-        {FILTER_TYPES.map(({ value, label }) => {
-          const isActive = filterType === value;
-          const accentColor = value ? RELATIONSHIP_COLORS[value] : 'var(--color-sage)';
-          return (
-            <button
-              key={String(value)}
-              style={{
-                ...styles.filterChip,
-                background: isActive ? accentColor : 'rgba(255,255,255,0.07)',
-                borderColor: isActive ? accentColor : 'rgba(255,255,255,0.12)',
-                color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
-              }}
-              onClick={() => setFilterType(filterType === value ? null : value)}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Sort controls */}
-      <div style={styles.sortRow}>
-        <div ref={sortRef} style={{ position: 'relative', flex: 1 }}>
-          <button style={styles.sortBtn} onClick={() => setSortOpen((o) => !o)}>
-            <span style={styles.sortBtnLabel}>{SORT_OPTIONS.find((o) => o.value === sortBy)?.label}</span>
-            <CaretDown
-              size={13}
-              color="rgba(255,255,255,0.6)"
-              style={{ transform: sortOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}
-            />
+      <div style={styles.screen}>
+        {/* Page header */}
+        <div style={styles.header}>
+          <h1 style={styles.title}>People</h1>
+          <button style={styles.addBtn} aria-label="Add person">
+            <Plus size={20} weight="bold" color="rgba(255,255,255,0.9)" />
           </button>
-          {sortOpen && (
-            <div style={styles.dropdown}>
-              {SORT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  style={{
-                    ...styles.dropdownItem,
-                    color: sortBy === opt.value ? 'var(--color-sage)' : 'rgba(255,255,255,0.8)',
-                    background: sortBy === opt.value ? 'rgba(74,124,111,0.15)' : 'transparent',
-                  }}
-                  onClick={() => { setSortBy(opt.value); setSortOpen(false); }}
-                >
-                  {sortBy === opt.value && <CheckCircle size={13} weight="fill" color="var(--color-sage)" />}
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
-        <button
-          style={styles.dirBtn}
-          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-          aria-label="Toggle sort direction"
-          title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
-        >
-          {sortDir === 'asc'
-            ? <ArrowUp size={15} color="rgba(255,255,255,0.8)" />
-            : <ArrowDown size={15} color="rgba(255,255,255,0.8)" />}
-          <span style={styles.dirLabel}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</span>
-        </button>
-      </div>
 
-      {/* List */}
-      <div style={styles.list}>
-        {visible.length === 0 ? (
-          <p style={styles.empty}>No people found.</p>
-        ) : (
-          visible.map((person) => (
-            <button
-              key={person.id}
-              style={styles.row}
-              onClick={() => navigate(`/people/${person.id}`)}
-            >
-              <div
-                style={{
-                  ...styles.avatar,
-                  background: RELATIONSHIP_COLORS[person.relationshipType] || 'rgba(255,255,255,0.2)',
-                }}
+        {/* Split panel */}
+        <div style={styles.splitPanel}>
+
+          {/* ── Left nav ── */}
+          <div style={styles.nav}>
+            {/* Search */}
+            <div style={styles.searchRow}>
+              <MagnifyingGlass size={14} color="rgba(255,255,255,0.4)" />
+              <input
+                style={styles.searchInput}
+                placeholder="Search people…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {/* Filter chips */}
+            <div style={styles.filterRow}>
+              {FILTER_TYPES.map(({ value, label }) => {
+                const isActive = filterType === value;
+                const accentColor = value ? RELATIONSHIP_COLORS[value] : 'var(--color-sage)';
+                return (
+                  <button
+                    key={String(value)}
+                    style={{
+                      ...styles.filterChip,
+                      background: isActive ? accentColor : 'rgba(255,255,255,0.06)',
+                      borderColor: isActive ? accentColor : 'rgba(255,255,255,0.1)',
+                      color: isActive ? '#fff' : 'rgba(255,255,255,0.5)',
+                    }}
+                    onClick={() => setFilterType(filterType === value ? null : value)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Sort controls */}
+            <div style={styles.sortRow}>
+              <div ref={sortRef} style={{ position: 'relative', flex: 1 }}>
+                <button style={styles.sortBtn} onClick={() => setSortOpen((o) => !o)}>
+                  <span style={styles.sortBtnLabel}>{SORT_OPTIONS.find((o) => o.value === sortBy)?.label}</span>
+                  <CaretDown
+                    size={12}
+                    color="rgba(255,255,255,0.5)"
+                    style={{ transform: sortOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}
+                  />
+                </button>
+                {sortOpen && (
+                  <div style={styles.dropdown}>
+                    {SORT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        style={{
+                          ...styles.dropdownItem,
+                          color: sortBy === opt.value ? 'var(--color-sage)' : 'rgba(255,255,255,0.8)',
+                          background: sortBy === opt.value ? 'rgba(74,124,111,0.15)' : 'transparent',
+                        }}
+                        onClick={() => { setSortBy(opt.value); setSortOpen(false); }}
+                      >
+                        {sortBy === opt.value && <CheckCircle size={12} weight="fill" color="var(--color-sage)" />}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                style={styles.dirBtn}
+                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                aria-label="Toggle sort direction"
               >
-                <span style={styles.initials}>
-                  {person.name.split(' ').map((n) => n[0]).join('')}
-                </span>
-              </div>
-              <div style={styles.info}>
-                <span style={styles.name}>{person.name}</span>
-                <span style={styles.rel}>{person.relationship}</span>
-              </div>
-              {person.conversationHistory?.[0] && (
-                <span style={styles.date}>
-                  {new Date(person.conversationHistory[0].date).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
+                {sortDir === 'asc'
+                  ? <ArrowUp size={13} color="rgba(255,255,255,0.7)" />
+                  : <ArrowDown size={13} color="rgba(255,255,255,0.7)" />}
+                <span style={styles.dirLabel}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</span>
+              </button>
+            </div>
+
+            {/* Person list */}
+            <div style={styles.list}>
+              {visible.length === 0 ? (
+                <p style={styles.empty}>No people found.</p>
+              ) : (
+                visible.map((person) => {
+                  const isSelected = person.id === selectedId;
+                  const accentColor = RELATIONSHIP_COLORS[person.relationshipType] || 'rgba(255,255,255,0.2)';
+                  return (
+                    <button
+                      key={person.id}
+                      style={{
+                        ...styles.row,
+                        background: isSelected ? 'rgba(74,124,111,0.15)' : 'rgba(255,255,255,0.04)',
+                        borderColor: isSelected ? 'rgba(74,124,111,0.5)' : 'rgba(255,255,255,0.08)',
+                      }}
+                      onClick={() => setSelectedId(isSelected ? null : person.id)}
+                    >
+                      <div style={{ ...styles.avatar, background: accentColor }}>
+                        <span style={styles.initials}>
+                          {person.name.split(' ').map((n) => n[0]).join('')}
+                        </span>
+                      </div>
+                      <div style={styles.info}>
+                        <span style={{
+                          ...styles.name,
+                          color: isSelected ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.85)',
+                        }}>
+                          {person.name}
+                        </span>
+                        <span style={styles.rel}>{person.relationship}</span>
+                      </div>
+                      {person.conversationHistory?.[0] && (
+                        <span style={styles.date}>
+                          {new Date(person.conversationHistory[0].date).toLocaleDateString(undefined, {
+                            month: 'short', day: 'numeric',
+                          })}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
               )}
-            </button>
-          ))
-        )}
+            </div>
+          </div>
+
+          {/* ── Divider ── */}
+          <div style={styles.divider} />
+
+          {/* ── Right detail ── */}
+          <div style={styles.detailPane}>
+            <PersonDetail person={selectedPerson} />
+          </div>
+
+        </div>
       </div>
-    </div>
     </div>
   );
 }
@@ -193,8 +283,8 @@ const styles = {
     background: '#0a0e14',
   },
   screen: {
-    padding: '24px 16px 100px',
-    maxWidth: 480,
+    padding: '24px 20px 0',
+    maxWidth: 900,
     margin: '0 auto',
   },
   header: {
@@ -222,15 +312,170 @@ const styles = {
     justifyContent: 'center',
     cursor: 'pointer',
   },
+
+  /* Split panel container */
+  splitPanel: {
+    display: 'flex',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    overflow: 'hidden',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    height: 'calc(100dvh - 196px)',
+  },
+
+  /* Left nav column */
+  nav: {
+    width: 260,
+    flexShrink: 0,
+    padding: '16px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+  },
+
+  divider: {
+    width: 1,
+    background: 'rgba(255,255,255,0.08)',
+    flexShrink: 0,
+  },
+
+  /* Right detail column */
+  detailPane: {
+    flex: 1,
+    overflowY: 'auto',
+    minWidth: 0,
+  },
+
+  /* Empty detail state */
+  emptyDetail: {
+    height: '100%',
+    minHeight: 400,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 32,
+  },
+  emptyDetailText: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.25)',
+    textAlign: 'center',
+  },
+
+  /* Person detail content */
+  detail: {
+    padding: '24px 20px',
+  },
+  detailProfile: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  detailAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailInitials: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 22,
+    fontWeight: 600,
+    color: '#fff',
+  },
+  detailName: {
+    fontFamily: 'var(--font-display)',
+    fontSize: 20,
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.95)',
+  },
+  detailBadge: {
+    padding: '3px 12px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: 12,
+    fontWeight: 500,
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  detailNotes: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.45)',
+    lineHeight: 1.65,
+    fontStyle: 'italic',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  detailSection: {
+    marginBottom: 20,
+  },
+  detailSectionTitle: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'rgba(255,255,255,0.35)',
+    marginBottom: 10,
+  },
+  detailPills: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  detailPill: {
+    padding: '4px 12px',
+    background: 'rgba(74,124,111,0.18)',
+    border: '1px solid rgba(74,124,111,0.35)',
+    borderRadius: 'var(--radius-full)',
+    fontSize: 13,
+    color: 'var(--color-sage)',
+    fontWeight: 500,
+  },
+  timeline: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+  },
+  timelineItem: {
+    borderLeft: '2px solid',
+    paddingLeft: 14,
+  },
+  timelineDate: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.35)',
+    display: 'block',
+    marginBottom: 3,
+  },
+  timelineSummary: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 1.55,
+  },
+
+  /* Nav controls */
   searchRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 10,
-    padding: '9px 14px',
-    marginBottom: 12,
+    gap: 8,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    padding: '8px 12px',
+    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
@@ -238,23 +483,23 @@ const styles = {
     border: 'none',
     outline: 'none',
     fontFamily: 'var(--font-body)',
-    fontSize: 15,
+    fontSize: 13,
     color: 'rgba(255,255,255,0.9)',
-    '::placeholder': { color: 'rgba(255,255,255,0.35)' },
   },
   filterRow: {
     display: 'flex',
-    gap: 6,
+    gap: 5,
     overflowX: 'auto',
     scrollbarWidth: 'none',
-    paddingBottom: 12,
+    paddingBottom: 10,
+    flexWrap: 'wrap',
   },
   filterChip: {
-    padding: '5px 13px',
+    padding: '4px 10px',
     borderRadius: 'var(--radius-full)',
     border: '1px solid',
     fontFamily: 'var(--font-body)',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 500,
     whiteSpace: 'nowrap',
     cursor: 'pointer',
@@ -263,47 +508,47 @@ const styles = {
   sortRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 10,
   },
   sortBtn: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.14)',
-    borderRadius: 8,
-    padding: '7px 12px',
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 7,
+    padding: '6px 10px',
     fontFamily: 'var(--font-body)',
-    fontSize: 13,
+    fontSize: 12,
     cursor: 'pointer',
   },
   sortBtnLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.7)',
   },
   dropdown: {
     position: 'absolute',
     top: 'calc(100% + 4px)',
     left: 0,
     right: 0,
-    background: 'rgba(18,22,30,0.96)',
+    background: 'rgba(18,22,30,0.97)',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,0.14)',
+    border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 10,
     overflow: 'hidden',
     zIndex: 50,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
   },
   dropdownItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
     width: '100%',
-    padding: '10px 14px',
+    padding: '9px 12px',
     fontFamily: 'var(--font-body)',
-    fontSize: 13,
+    fontSize: 12,
     border: 'none',
     cursor: 'pointer',
     textAlign: 'left',
@@ -311,48 +556,47 @@ const styles = {
   dirBtn: {
     display: 'flex',
     alignItems: 'center',
-    gap: 5,
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.14)',
-    borderRadius: 8,
-    padding: '7px 12px',
+    gap: 4,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 7,
+    padding: '6px 9px',
     cursor: 'pointer',
+    flexShrink: 0,
   },
   dirLabel: {
     fontFamily: 'var(--font-mono)',
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
   },
   list: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 4,
+    overflowY: 'auto',
   },
   empty: {
     fontFamily: 'var(--font-body)',
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.35)',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.3)',
     textAlign: 'center',
-    marginTop: 40,
+    marginTop: 24,
   },
   row: {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    padding: '12px 16px',
-    background: 'rgba(255,255,255,0.06)',
-    backdropFilter: 'blur(16px)',
-    WebkitBackdropFilter: 'blur(16px)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 12,
+    gap: 10,
+    padding: '10px 10px',
+    border: '1px solid',
+    borderRadius: 10,
     cursor: 'pointer',
     width: '100%',
     textAlign: 'left',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
+    transition: 'background 150ms, border-color 150ms',
   },
   avatar: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
@@ -361,7 +605,7 @@ const styles = {
   },
   initials: {
     fontFamily: 'var(--font-body)',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: 600,
     color: '#fff',
   },
@@ -369,22 +613,26 @@ const styles = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    gap: 2,
+    gap: 1,
+    minWidth: 0,
   },
   name: {
     fontFamily: 'var(--font-body)',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 500,
-    color: 'rgba(255,255,255,0.92)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   rel: {
     fontFamily: 'var(--font-body)',
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.4)',
   },
   date: {
     fontFamily: 'var(--font-mono)',
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.35)',
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.3)',
+    flexShrink: 0,
   },
 };
