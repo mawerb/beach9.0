@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Microphone, MicrophoneSlash, ChatText } from '@phosphor-icons/react';
-import { useTranscriptStore } from '../../stores/transcriptStore';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { Microphone, MicrophoneSlash, ChatText, ArrowsLeftRight } from '@phosphor-icons/react';
+import {
+  useTranscriptStore,
+  transcriptDisplayLabel,
+  transcriptLineAsYou,
+} from '../../stores/transcriptStore';
 
 const PANEL_WIDTH = 240;
 const TAB_WIDTH = 32;
@@ -10,7 +13,8 @@ const TAB_WIDTH = 32;
 export default function TranscriptBar() {
   const lines = useTranscriptStore((s) => s.lines);
   const isLive = useTranscriptStore((s) => s.isLive);
-  const userMode = useSettingsStore((s) => s.userMode);
+  const speakerLabelsSwapped = useTranscriptStore((s) => s.speakerLabelsSwapped);
+  const toggleSpeakerLabelsSwapped = useTranscriptStore((s) => s.toggleSpeakerLabelsSwapped);
   const [open, setOpen] = useState(false);
   const scrollRef = useRef(null);
 
@@ -38,17 +42,32 @@ export default function TranscriptBar() {
       {/* Panel content */}
       <div style={styles.panel}>
         <div style={styles.header}>
-          {isLive ? (
-            <>
-              <Microphone size={13} weight="fill" color="var(--color-sage)" />
-              <span style={styles.headerLabel}>Live</span>
-            </>
-          ) : (
-            <span style={styles.inactiveBubble}>
-              <MicrophoneSlash size={11} color="var(--color-amber)" />
-              <span style={styles.inactiveLabel}>Mic off</span>
-            </span>
-          )}
+          <div style={styles.headerLeft}>
+            {isLive ? (
+              <>
+                <Microphone size={13} weight="fill" color="var(--color-sage)" />
+                <span style={styles.headerLabel}>Live</span>
+              </>
+            ) : (
+              <span style={styles.inactiveBubble}>
+                <MicrophoneSlash size={11} color="var(--color-amber)" />
+                <span style={styles.inactiveLabel}>Mic off</span>
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            style={{
+              ...styles.swapBtn,
+              ...(speakerLabelsSwapped ? styles.swapBtnActive : {}),
+            }}
+            onClick={() => toggleSpeakerLabelsSwapped()}
+            aria-pressed={speakerLabelsSwapped}
+            title="Swap who is labeled You vs Them (fixes reversed mic roles)"
+          >
+            <ArrowsLeftRight size={14} weight="bold" />
+            <span style={styles.swapBtnLabel}>You ↔ Them</span>
+          </button>
         </div>
 
         <div style={styles.scrollArea} ref={scrollRef}>
@@ -56,20 +75,21 @@ export default function TranscriptBar() {
             <p style={styles.empty}>No transcript yet…</p>
           ) : (
             lines.map((line) => {
-              const isUser = line.speaker === 'user';
+              const asYou = transcriptLineAsYou(line.speaker, speakerLabelsSwapped);
+              const senderLabel = transcriptDisplayLabel(line.speaker, speakerLabelsSwapped);
               return (
                 <div
                   key={line.lineId}
                   style={{
                     ...styles.bubbleRow,
-                    justifyContent: isUser ? 'flex-end' : 'flex-start',
+                    justifyContent: asYou ? 'flex-end' : 'flex-start',
                   }}
                 >
                   <div
                     style={{
                       ...styles.bubble,
-                      background: isUser ? '#d1fae5' : '#dbeafe',
-                      borderRadius: isUser
+                      background: asYou ? '#d1fae5' : '#dbeafe',
+                      borderRadius: asYou
                         ? '14px 14px 2px 14px'
                         : '14px 14px 14px 2px',
                       opacity: line.isFinal ? 1 : 0.6,
@@ -77,9 +97,9 @@ export default function TranscriptBar() {
                   >
                     <span style={{
                       ...styles.bubbleSender,
-                      color: isUser ? '#065f46' : '#1e40af',
+                      color: asYou ? '#065f46' : '#1e40af',
                     }}>
-                      {isUser ? 'You' : 'Them'}
+                      {senderLabel}
                     </span>
                     <span style={{
                       ...styles.bubbleText,
@@ -159,10 +179,43 @@ const styles = {
   header: {
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    gap: 8,
     padding: '8px 12px 6px',
     borderBottom: '1px solid rgba(0,0,0,0.08)',
     flexShrink: 0,
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 0,
+  },
+  swapBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+    padding: '4px 8px',
+    borderRadius: 8,
+    border: '1px solid rgba(0,0,0,0.12)',
+    background: 'rgba(255,255,255,0.35)',
+    cursor: 'pointer',
+    font: 'inherit',
+    color: 'rgba(0,0,0,0.65)',
+  },
+  swapBtnActive: {
+    borderColor: 'rgba(30, 64, 175, 0.35)',
+    background: 'rgba(219, 234, 254, 0.6)',
+    color: '#1e40af',
+  },
+  swapBtnLabel: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 9,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    whiteSpace: 'nowrap',
   },
   headerLabel: {
     fontFamily: 'var(--font-mono)',
